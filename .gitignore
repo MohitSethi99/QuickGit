@@ -1,0 +1,24 @@
+# Binaries
+[Bb]in/
+[Bb]in-[Ii]nt/
+
+# Visual Studio files and folder
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.csproj
+*.csproj.user
+*.ini
+
+packages/
+/**/packages.config
+
+/**/Makefile
+
+# ArcEngine files
+*.log
+
+# Cache
+.[Cc]ache/

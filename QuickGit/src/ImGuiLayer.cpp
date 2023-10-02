@@ -155,6 +155,7 @@ namespace QuickGit
 		git_repository_head(&ref, repoData.Repository);
 		const git_oid* id = git_reference_target(ref);
 		git_oid_tostr(repoData.Head, GIT_OID_HEXSZ + 1, id);
+		git_reference_free(ref);
 	}
 
 	constexpr uint32_t GenerateColor(const char* str)

@@ -19,7 +19,6 @@
 #include "Client.h"
 
 #define SHORT_SHA_LENGTH 7
-#define SHORT_SHA_END(SHA) (SHA + SHORT_SHA_LENGTH)
 #define COMMIT_ID_LEN 64
 #define COMMIT_MSG_LEN 256
 #define COMMIT_DESC_LEN 2048
@@ -545,8 +544,6 @@ namespace QuickGit
 			static ImGuiTextFilter filter;
 			filter.Draw();
 
-			static CommitData* selectedCommit = nullptr;
-
 			git_checkout_options safeCheckoutOp = { GIT_CHECKOUT_OPTIONS_VERSION, GIT_CHECKOUT_SAFE | GIT_CHECKOUT_UPDATE_SUBMODULES };
 			//safeCheckoutOp.progress_cb = checkout_progress;
 			safeCheckoutOp.dir_mode = 0777;
@@ -565,8 +562,9 @@ namespace QuickGit
 				ImGuiTableColumnFlags_NoHide |
 				ImGuiTableColumnFlags_NoHeaderLabel;
 
+			static CommitData* selectedCommit = nullptr;
 			static char* error = nullptr;
-			static CommitData* newBranch = nullptr;
+			bool showNewBranchWindow = false;
 
 			if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
 			{
@@ -616,7 +614,7 @@ namespace QuickGit
 					ImGui::TableNextColumn();
 					ImGui::TextUnformatted(data->AuthorName);
 					ImGui::TableNextColumn();
-					ImGui::TextUnformatted(data->CommitID, SHORT_SHA_END(data->CommitID));
+					ImGui::Text("%.*s", SHORT_SHA_LENGTH, data->CommitID);
 					ImGui::TableNextColumn();
 					ImGui::TextUnformatted(data->AuthorDate, data->AuthorDate + strlen(data->AuthorDate) - 3);
 					ImGui::EndDisabled();
@@ -652,11 +650,11 @@ namespace QuickGit
 							}
 							if (ImGui::MenuItem("New Branch"))
 							{
-								newBranch = data.get();
+								showNewBranchWindow = true;
 							}
-							if (ImGui::MenuItem("Checkout"))
+							if (ImGui::MenuItem("Checkout Commit"))
 							{
-								Stopwatch sw("Checkout");
+								Stopwatch sw("Checkout Commit");
 
 								int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data->Commit), &safeCheckoutOp);
 								if (err >= 0)
@@ -733,97 +731,87 @@ namespace QuickGit
 			}
 
 			// New Branch Window
+			if (selectedCommit)
 			{
-				static bool newBranchWindowShowing = false;
-				if (newBranch && !newBranchWindowShowing)
+				if (showNewBranchWindow)
 				{
 					ImGui::OpenPopup("Create Branch");
-					newBranchWindowShowing = true;
 				}
 
-				if (newBranch && newBranchWindowShowing)
+				const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+				ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+				ImGui::SetNextWindowSize({ 600, 300 }, ImGuiCond_FirstUseEver);
+				bool showNewBranchWindowTemp = true;
+				if (ImGui::BeginPopupModal("Create Branch", &showNewBranchWindowTemp))
 				{
-					ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-					ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-					ImGui::SetNextWindowSize({ 600, 300 }, ImGuiCond_Appearing);
-					if (ImGui::BeginPopupModal("Create Branch"))
+					if (ImGui::BeginTable("BranchTable", 2))
 					{
-						if (ImGui::BeginTable("BranchTable", 2))
+						ImGui::TableSetupColumn("Col1", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+						ImGui::TableSetupColumn("Col2", columnFlags);
+
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn();
+
+						ImGui::TextUnformatted("Create Branch at:");
+						ImGui::TableNextColumn();
+						ImGui::Text("%s %.*s %s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, selectedCommit->CommitID, selectedCommit->Message);
+
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn();
+
+						ImGui::TextUnformatted("Branch name:");
+						ImGui::TableNextColumn();
+						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+						static char branchName[256] = "";
+						ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256);
+
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn();
+						ImGui::TableNextColumn();
+
+						static bool checkoutAfterCreate = false;
+						ImGui::Checkbox("Check out after create", &checkoutAfterCreate);
+
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn();
+						ImGui::TableNextColumn();
+
+						if (ImGui::Button("Create", ImVec2(120, 0)))
 						{
-							ImGui::TableSetupColumn("Col1", columnFlags | ImGuiTableColumnFlags_WidthFixed);
-							ImGui::TableSetupColumn("Col2", columnFlags);
+							git_reference* outBranch = nullptr;
+							int err = git_branch_create(&outBranch, repoData->Repository, branchName, selectedCommit->Commit, 0);
+							if (err >= 0 && checkoutAfterCreate)
+								err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(selectedCommit->Commit), &safeCheckoutOp);
 
-							ImGui::TableNextRow();
-							ImGui::TableNextColumn();
+							if (outBranch)
+								refreshed = true;
 
-							ImGui::TextUnformatted("Create Branch at:");
-							ImGui::TableNextColumn();
-							ImGui::TextUnformatted(newBranch->CommitID, SHORT_SHA_END(newBranch->CommitID));
-							ImGui::SameLine();
-							ImGui::TextUnformatted(newBranch->Message);
-
-							ImGui::TableNextRow();
-							ImGui::TableNextColumn();
-
-							ImGui::TextUnformatted("Branch name:");
-							ImGui::TableNextColumn();
-							ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-							static char branchName[256] = "";
-							ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256);
-
-							ImGui::TableNextRow();
-							ImGui::TableNextColumn();
-							ImGui::TableNextColumn();
-
-							static bool checkoutAfterCreate = false;
-							ImGui::Checkbox("Check out after create", &checkoutAfterCreate);
-
-							ImGui::TableNextRow();
-							ImGui::TableNextColumn();
-							ImGui::TableNextColumn();
-
-							if (ImGui::Button("Create", ImVec2(120, 0)))
+							if (err >= 0 && checkoutAfterCreate)
 							{
-								git_reference* outBranch = nullptr;
-								int err = git_branch_create(&outBranch, repoData->Repository, branchName, newBranch->Commit, 0);
-								if (err >= 0 && checkoutAfterCreate)
-									err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(newBranch), &safeCheckoutOp);
-
-								if (outBranch)
-									refreshed = true;
-
-								if (err >= 0 && checkoutAfterCreate)
-								{
-									char brName[512];
-									snprintf(brName, 512, "refs/heads/%s", branchName);
-									err = git_repository_set_head(repoData->Repository, brName);
-									UpdateHead(*repoData);
-								}
-
-								if (err < 0)
-									error = git_error_last()->message;
-
-								memset(branchName, 0, 256);
-								newBranchWindowShowing = false;
-								newBranch = nullptr;
-								ImGui::CloseCurrentPopup();
+								char brName[512];
+								snprintf(brName, 512, "refs/heads/%s", branchName);
+								err = git_repository_set_head(repoData->Repository, brName);
+								UpdateHead(*repoData);
 							}
 
-							ImGui::SameLine();
+							if (err < 0)
+								error = git_error_last()->message;
 
-							if (ImGui::Button("Cancel", ImVec2(120, 0)))
-							{
-								memset(branchName, 0, 256);
-								newBranchWindowShowing = false;
-								newBranch = nullptr;
-								ImGui::CloseCurrentPopup();
-							}
-
-							ImGui::EndTable();
+							memset(branchName, 0, 256);
+							ImGui::CloseCurrentPopup();
 						}
 
-						ImGui::EndPopup();
+						ImGui::SameLine();
+
+						if (ImGui::Button("Cancel", ImVec2(120, 0)))
+						{
+							ImGui::CloseCurrentPopup();
+						}
+
+						ImGui::EndTable();
 					}
+
+					ImGui::EndPopup();
 				}
 			}
 
@@ -838,7 +826,7 @@ namespace QuickGit
 
 				if (gitErrorStr[0] != '\0')
 				{
-					ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+					const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 					ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 					if (ImGui::BeginPopupModal("Error"))
 					{

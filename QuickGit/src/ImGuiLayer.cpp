@@ -432,6 +432,9 @@ namespace QuickGit
 			style.SeparatorTextBorderSize = 2.0f;
 			style.DisplaySafeAreaPadding = ImVec2(8.0f, 8.0f);
 
+			style.WindowMinSize.x = 370.0f;
+			style.WindowMinSize.y = 185.0f;
+
 			ImGuiColorEditFlags colorEditFlags = ImGuiColorEditFlags_AlphaBar
 				| ImGuiColorEditFlags_AlphaPreviewHalf
 				| ImGuiColorEditFlags_DisplayRGB

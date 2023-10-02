@@ -124,7 +124,7 @@ namespace QuickGit
 		iconsConfig.GlyphMinAdvanceX = 4.0f;
 		iconsConfig.SizePixels = 12.0f;
 
-		constexpr const char* regularFontPath = "res/fonts/jetbrains-mono/JetBrainsMono-Medium.ttf";
+		constexpr const char* regularFontPath = "res/fonts/jetbrains-mono/JetBrainsMono-Light.ttf";
 		constexpr const char* boldFontPath = "res/fonts/jetbrains-mono/JetBrainsMono-Bold.ttf";
 
 		g_DefaultFont = io.Fonts->AddFontFromFileTTF(regularFontPath, fontSize, &iconsConfig);

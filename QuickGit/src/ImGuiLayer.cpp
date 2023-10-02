@@ -313,7 +313,7 @@ namespace QuickGit
 			return false;
 
 		glfwMakeContextCurrent(g_Window);
-		glfwSwapInterval(0);
+		glfwSwapInterval(1);
 
 		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
 			return false;

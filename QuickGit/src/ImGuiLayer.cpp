@@ -1011,7 +1011,7 @@ namespace QuickGit
 		{
 			const char* p = git_repository_workdir(repo);
 			bool open = ImGui::TreeNodeEx(p, ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf);
-			if (ImGui::IsAnyItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+			if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			{
 				std::unique_ptr<RepoData> data = std::make_unique<RepoData>();
 				Fill(data.get(), repo);

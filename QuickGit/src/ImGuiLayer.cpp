@@ -90,6 +90,7 @@ namespace QuickGit
 		std::unordered_map<git_reference*, std::string> Branches;
 		std::vector<CommitData> Commits;
 		std::unordered_map<UUID, std::vector<BranchData>> BranchHeads;
+		std::unordered_map<UUID, uint64_t> CommitsIndexMap;
 
 		~RepoData()
 		{
@@ -226,6 +227,7 @@ namespace QuickGit
 		data->Commits.clear();
 		data->Branches.clear();
 		data->BranchHeads.clear();
+		data->CommitsIndexMap.clear();
 
 		data->Repository = repo;
 
@@ -290,11 +292,12 @@ namespace QuickGit
 						const git_signature* committer = git_commit_committer(commit);
 						const char* commitSummary = git_commit_summary(commit);
 						const char* commitDesc = git_commit_body(commit);
+						const UUID id = GenUUID(idStr.c_str());;
 
 						CommitData cd;
 						cd.Commit = commit;
 						cd.CommitTime = author->when.time;
-						cd.ID = GenUUID(idStr.c_str());
+						cd.ID = id;
 
 						strncpy_s(cd.CommitID, idStr.c_str(), sizeof(cd.CommitID) - 1);
 
@@ -325,6 +328,7 @@ namespace QuickGit
 						strftime(cd.CommitterDate, sizeof(cd.CommitterDate), "%d %b %Y %H:%M:%S", &localTime);
 
 						data->Commits.emplace_back(std::move(cd));
+						data->CommitsIndexMap.emplace(id, data->Commits.size() - 1);
 					}
 				}
 

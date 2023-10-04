@@ -1063,7 +1063,76 @@ namespace QuickGit
 
 
 
-		ImGui::Begin("No Repository Selected");
+		ImGui::Begin("Commit");
+		ImGui::Indent();
+		static CommitData* cd = nullptr;
+		static std::string diffStr = "";
+		if (g_SelectedCommit)
+		{
+			if (g_SelectedCommit != cd)
+			{
+				git_buf buf = GIT_BUF_INIT;
+				git_email_create_options op = GIT_EMAIL_CREATE_OPTIONS_INIT;
+				git_email_create_from_commit(&buf, g_SelectedCommit->Commit, &op);
+				diffStr = buf.ptr ? buf.ptr : "";
+				diffStr[diffStr.find_last_of("libgit2")] = '\0';
+				git_buf_free(&buf);
+				cd = g_SelectedCommit;
+			}
+
+			if (ImGui::BeginTable("CommitTopTable", 2))
+			{
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+
+				ImGui::TextUnformatted("AUTHOR");
+				ImGui::Spacing();
+				ImGui::PushFont(g_BoldFont);
+				ImGui::TextUnformatted(g_SelectedCommit->AuthorName);
+				ImGui::PopFont();
+				ImGui::SameLine();
+				ImGui::TextUnformatted(g_SelectedCommit->AuthorEmail);
+				ImGui::TextUnformatted(g_SelectedCommit->AuthorDate);
+				ImGui::SameLine();
+				ImGui::TextUnformatted(g_SelectedCommit->AuthorTimezoneOffset);
+
+				ImGui::TableNextColumn();
+
+				ImGui::TextUnformatted("COMMITTER");
+				ImGui::Spacing();
+				ImGui::PushFont(g_BoldFont);
+				ImGui::TextUnformatted(g_SelectedCommit->CommitterName);
+				ImGui::PopFont();
+				ImGui::SameLine();
+				ImGui::TextUnformatted(g_SelectedCommit->CommitterEmail);
+				ImGui::TextUnformatted(g_SelectedCommit->CommitterDate);
+				ImGui::SameLine();
+				ImGui::TextUnformatted(g_SelectedCommit->CommitterTimezoneOffset);
+
+				ImGui::EndTable();
+			}
+
+			ImGui::Spacing();
+			ImGui::Text("SHA %s", g_SelectedCommit->CommitID);
+			ImGui::Spacing();
+
+			ImGui::Separator();
+
+			ImGui::Spacing();
+			ImGui::PushFont(g_HeadingFont);
+			ImGui::TextWrapped(g_SelectedCommit->Message);
+			ImGui::PopFont();
+			if (g_SelectedCommit->Description[0] != '\0')
+			{
+				ImGui::TextWrapped(g_SelectedCommit->Description);
+			}
+			ImGui::Spacing();
+
+			ImGui::Separator();
+
+			ImGui::InputTextMultiline("##CommitInlineDiff", &diffStr[0], diffStr.size(), ImGui::GetContentRegionAvail(), ImGuiInputTextFlags_ReadOnly);
+		}
+		ImGui::Unindent();
 		ImGui::End();
 		
 		static bool show_demo_window = true;

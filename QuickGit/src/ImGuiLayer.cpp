@@ -36,21 +36,27 @@ struct DescendingComparator
 
 namespace QuickGit
 {
+	typedef uint64_t UUID;
+
 	struct CommitData
 	{
 		git_commit* Commit;
+		git_time_t CommitTime;
+		UUID ID;
 
 		char CommitID[COMMIT_ID_LEN];
 		char Message[COMMIT_MSG_LEN];
-		char Description[COMMIT_DESC_LEN];
 		char AuthorName[COMMIT_NAME_EMAIL_LEN];
 		char AuthorEmail[COMMIT_NAME_EMAIL_LEN];
 		char AuthorDate[COMMIT_DATE_LEN];
 		char AuthorTimezoneOffset[COMMIT_TIMEZONE_LEN];
+
 		char CommitterName[COMMIT_NAME_EMAIL_LEN];
 		char CommitterEmail[COMMIT_NAME_EMAIL_LEN];
 		char CommitterDate[COMMIT_DATE_LEN];
 		char CommitterTimezoneOffset[COMMIT_TIMEZONE_LEN];
+
+		char Description[COMMIT_DESC_LEN];
 	};
 
 	enum class BranchType { Remote, Local };
@@ -63,6 +69,14 @@ namespace QuickGit
 		uint32_t Color;
 	};
 
+	UUID GenUUID(const char* str)
+	{
+		UUID hash = 0;
+		while (*str)
+			hash = (hash << 5) + *str++;
+		return hash;
+	}
+
 	struct RepoData
 	{
 		git_repository* Repository = nullptr;
@@ -71,16 +85,16 @@ namespace QuickGit
 		std::string Filepath{};
 		size_t UncommittedFiles = 0;
 
-		char Head[COMMIT_ID_LEN]{};
+		UUID Head = 0;
 		git_reference* HeadBranch = nullptr;
 		std::unordered_map<git_reference*, std::string> Branches;
-		std::unordered_map<std::string, std::vector<BranchData>> BranchHeads;
-		std::map<git_time_t, std::unique_ptr<CommitData>, DescendingComparator> Commits;
+		std::vector<CommitData> Commits;
+		std::unordered_map<UUID, std::vector<BranchData>> BranchHeads;
 
 		~RepoData()
 		{
-			for (auto& [_, commitData] : Commits)
-				git_commit_free(commitData->Commit);
+			for (auto& commitData : Commits)
+				git_commit_free(commitData.Commit);
 
 			for (auto& [branchRef, _] : Branches)
 				git_reference_free(branchRef);
@@ -160,7 +174,7 @@ namespace QuickGit
 		git_reference* ref;
 		git_repository_head(&ref, repoData.Repository);
 		const git_oid* id = git_reference_target(ref);
-		git_oid_tostr(repoData.Head, GIT_OID_HEXSZ + 1, id);
+		repoData.Head = GenUUID(git_oid_tostr_s(id));
 		git_reference_free(ref);
 
 		repoData.HeadBranch = nullptr;
@@ -203,8 +217,8 @@ namespace QuickGit
 		if (!data || !repo)
 			return;
 
-		for (auto& [_, commitData] : data->Commits)
-			git_commit_free(commitData->Commit);
+		for (auto& commitData : data->Commits)
+			git_commit_free(commitData.Commit);
 
 		for (auto& [branchRef, _] : data->Branches)
 			git_reference_free(branchRef);
@@ -236,6 +250,7 @@ namespace QuickGit
 		git_reference_iterator* refIt = nullptr;
 		git_reference* ref = nullptr;
 		git_reference_iterator_new(&refIt, repo);
+		std::set<std::string> uniqueCommits;
 		while (git_reference_next(&ref, refIt) == 0)
 		{
 			git_reference_t refType = git_reference_type(ref);
@@ -249,8 +264,8 @@ namespace QuickGit
 				{
 					const git_oid* targetId = git_commit_id(targetCommit);
 					data->Branches[ref] = refName;
-					BranchType type = data->Branches[ref].starts_with("refs/remotes") ? BranchType::Remote : BranchType::Local;
-					data->BranchHeads[git_oid_tostr_s(targetId)].emplace_back(ref, type, GenerateColor(refName));
+					BranchType type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
+					data->BranchHeads[GenUUID(git_oid_tostr_s(targetId))].emplace_back(ref, type, GenerateColor(refName));
 				}
 
 				git_revwalk* walker;
@@ -262,6 +277,12 @@ namespace QuickGit
 				git_oid oid;
 				while (git_revwalk_next(&oid, walker) == 0)
 				{
+					std::string idStr = git_oid_tostr_s(&oid);
+					if (uniqueCommits.contains(idStr))
+						continue;
+
+					uniqueCommits.emplace(idStr);
+
 					git_commit* commit = nullptr;
 					if (git_commit_lookup(&commit, repo, &oid) == 0)
 					{
@@ -270,34 +291,40 @@ namespace QuickGit
 						const char* commitSummary = git_commit_summary(commit);
 						const char* commitDesc = git_commit_body(commit);
 
-						std::unique_ptr<CommitData> cd = std::make_unique<CommitData>();
-						cd->Commit = commit;
+						CommitData cd;
+						cd.Commit = commit;
+						cd.CommitTime = author->when.time;
+						cd.ID = GenUUID(idStr.c_str());
 
-						strcpy_s(cd->CommitID, git_oid_tostr_s(&oid));
+						strncpy_s(cd.CommitID, idStr.c_str(), sizeof(cd.CommitID) - 1);
 
 						if (commitSummary)
-							strncpy_s(cd->Message, commitSummary, sizeof(cd->Message) - 1);
+							strncpy_s(cd.Message, commitSummary, sizeof(cd.Message) - 1);
+						else
+							memset(cd.Message, 0, sizeof(cd.Message));
 
 						if (commitDesc)
-							strncpy_s(cd->Description, commitDesc, sizeof(cd->Description) - 1);
+							strncpy_s(cd.Description, commitDesc, sizeof(cd.Description) - 1);
+						else
+							memset(cd.Description, 0, sizeof(cd.Description));
 
-						strcpy_s(cd->AuthorName, author->name);
-						strcpy_s(cd->AuthorEmail, author->email);
-						sprintf_s(cd->AuthorTimezoneOffset, "%c%d:%d", author->when.sign, author->when.offset / 60, author->when.offset % 60);
-						strcpy_s(cd->CommitterName, committer->name);
-						strcpy_s(cd->CommitterEmail, committer->email);
-						sprintf_s(cd->CommitterTimezoneOffset, "%c%d:%d", committer->when.sign, committer->when.offset / 60, committer->when.offset % 60);
+						strncpy_s(cd.AuthorName, author->name, sizeof(cd.AuthorName) - 1);
+						strncpy_s(cd.AuthorEmail, author->email, sizeof(cd.AuthorEmail) - 1);
+						sprintf_s(cd.AuthorTimezoneOffset, "%c%d:%d", author->when.sign, author->when.offset / 60, author->when.offset % 60);
+						strncpy_s(cd.CommitterName, committer->name, sizeof(cd.CommitterName) - 1);
+						strncpy_s(cd.CommitterEmail, committer->email, sizeof(cd.CommitterEmail) - 1);
+						sprintf_s(cd.CommitterTimezoneOffset, "%c%d:%d", committer->when.sign, committer->when.offset / 60, committer->when.offset % 60);
 
 						git_time_t timestamp = author->when.time;
 						tm localTime;
 						localtime_s(&localTime, &timestamp);
-						strftime(cd->AuthorDate, sizeof(cd->AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
+						strftime(cd.AuthorDate, sizeof(cd.AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
 
 						timestamp = committer->when.time;
 						localtime_s(&localTime, &timestamp);
-						strftime(cd->CommitterDate, sizeof(cd->CommitterDate), "%d %b %Y %H:%M:%S", &localTime);
+						strftime(cd.CommitterDate, sizeof(cd.CommitterDate), "%d %b %Y %H:%M:%S", &localTime);
 
-						data->Commits[author->when.time] = std::move(cd);
+						data->Commits.emplace_back(std::move(cd));
 					}
 				}
 
@@ -311,6 +338,11 @@ namespace QuickGit
 		}
 		git_reference_iterator_free(refIt);
 
+		std::sort(data->Commits.begin(), data->Commits.end(), [](const CommitData& lhs, const CommitData& rhs)
+		{
+			return lhs.CommitTime > rhs.CommitTime;
+		});
+		
 		UpdateHead(*data);
 	}
 
@@ -630,270 +662,380 @@ namespace QuickGit
 			};
 
 			Action action = Action::None;
-			static char* error = nullptr;
-			const float lineHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
-
-			if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
-			{
-				ImGuiStyle& style = ImGui::GetStyle();
-
-				ImGui::TableSetupColumn("Message", columnFlags);
-				ImGui::TableSetupColumn("AuthorName", columnFlags | ImGuiTableColumnFlags_WidthFixed);
-				ImGui::TableSetupColumn("CommitID", columnFlags | ImGuiTableColumnFlags_WidthFixed);
-				ImGui::TableSetupColumn("AuthorDate", columnFlags | ImGuiTableColumnFlags_WidthFixed);
-
-				bool disabled = true;
-				int row = 0;
-				for (const auto& [_, data] : repoData->Commits)
-				{
-					if (filter.IsActive() && !(filter.PassFilter(data->CommitID) || filter.PassFilter(data->Message) || filter.PassFilter(data->Description) || filter.PassFilter(data->AuthorName) || filter.PassFilter(data->AuthorEmail)))
-						continue;
-
-					if (ImGui::IsWindowFocused() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
-						g_SelectedCommit = data.get();
-
-					++row;
-					ImGui::TableNextRow();
-					ImGui::TableNextColumn();
-					if (repoData->BranchHeads.find(data->CommitID) != repoData->BranchHeads.end())
-					{
-						std::vector<BranchData>& branches = repoData->BranchHeads.at(data->CommitID);
-						for (BranchData& branch : branches)
-						{
-							const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
-							const char* branchName = repoData->Branches.at(branch.Branch).c_str();
-							ImVec2 size = ImGui::CalcTextSize(branchName);
-							if (isHeadBranch)
-								size.x += lineHeightWithSpacing;
-							ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
-							size.x += style.FramePadding.x;
-							size.y += style.FramePadding.y * 0.75f;
-							rectMin.x -= style.FramePadding.x * 0.5f;
-							rectMin.y -= style.FramePadding.y * 0.5f;
-							ImGui::RenderFrame(rectMin, rectMin + size, branch.Color, true, 2.0f);
-							if (isHeadBranch)
-							{
-								ImGui::PushFont(g_BoldFont);
-								ImGui::Text("%s%s", ICON_MDI_CHECK_ALL, branchName);
-								ImGui::PopFont();
-							}
-							else
-							{
-								ImGui::TextUnformatted(branchName);
-							}
-							ImGui::SameLine(0, lineHeightWithSpacing);
-						}
-					}
-					
-					bool isHead = strcmp(data->CommitID, repoData->Head) == 0;
-					if (disabled && isHead)
-						disabled = false;
-					
-					if (isHead)
-						ImGui::PushFont(g_BoldFont);
-
-					ImGui::BeginDisabled(disabled);
-					ImGui::TextUnformatted(data->Message);
-					ImGui::TableNextColumn();
-					ImGui::TextUnformatted(data->AuthorName);
-					ImGui::TableNextColumn();
-					ImGui::Text("%.*s", SHORT_SHA_LENGTH, data->CommitID);
-					ImGui::TableNextColumn();
-					ImGui::TextUnformatted(data->AuthorDate, data->AuthorDate + strlen(data->AuthorDate) - 3);
-					ImGui::EndDisabled();
-
-					if (isHead)
-						ImGui::PopFont();
-
-					if (g_SelectedCommit == data.get())
-					{
-						ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImColor(0.14f, 0.42f, 0.82f, 1.0f));
-
-						if (ImGui::IsMouseReleased(1))
-							ImGui::OpenPopup("CommitPopup", ImGuiPopupFlags_NoOpenOverExistingPopup);
-						if (ImGui::BeginPopup("CommitPopup"))
-						{
-							if (repoData->BranchHeads.find(data->CommitID) != repoData->BranchHeads.end())
-							{
-								std::vector<BranchData>& branches = repoData->BranchHeads.at(data->CommitID);
-								for (BranchData& branch : branches)
-								{
-									if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).c_str()))
-									{
-										Stopwatch sw("Branch Checkout");
-
-										action = Action::CheckoutBranch;
-										int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data->Commit), &safeCheckoutOp);
-										if (err >= 0)
-											err = git_repository_set_head(repoData->Repository, repoData->Branches.at(branch.Branch).c_str());
-
-										if (err < 0)
-											error = git_error_last()->message;
-									}
-								}
-								ImGui::Separator();
-							}
-							if (ImGui::MenuItem("New Branch"))
-							{
-								action = Action::CreateBranch;
-							}
-
-							if (repoData->HeadBranch && !isHead)
-							{
-								char resetString[512];
-								snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).c_str());
-								ImGui::Separator();
-								if (ImGui::BeginMenu(resetString))
-								{
-									if (ImGui::MenuItem("Soft (Move the head to the given commit)"))
-									{
-										Stopwatch sw("Soft Reset");
-
-										if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_SOFT, &safeCheckoutOp) < 0)
-											error = git_error_last()->message;
-
-										action = Action::Reset;
-									}
-									if (ImGui::MenuItem("Mixed (Soft + reset index to the commit)"))
-									{
-										Stopwatch sw("Mixed Reset");
-
-										if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_MIXED, &safeCheckoutOp) < 0)
-											error = git_error_last()->message;
-
-										action = Action::Reset;
-									}
-									if (ImGui::MenuItem("Hard (Mixed + changes in working tree discarded)"))
-									{
-										Stopwatch sw("Hard Reset");
-
-										if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_HARD, &forceCheckoutOp) < 0)
-											error = git_error_last()->message;
-
-										action = Action::Reset;
-									}
-
-									ImGui::EndMenu();
-								}
-							}
-
-							ImGui::Separator();
-							if (ImGui::MenuItem("Checkout Commit"))
-							{
-								action = Action::CheckoutCommit;
-							}
-							
-							ImGui::Separator();
-							if (ImGui::MenuItem("Copy Commit SHA"))
-							{
-								ImGui::SetClipboardText(g_SelectedCommit->CommitID);
-							}
-							if (ImGui::MenuItem("Copy Commit Info"))
-							{
-								char shortSHA[8];
-								strncpy_s(shortSHA, g_SelectedCommit->CommitID, SHORT_SHA_LENGTH);
-								std::string info = "SHA: ";
-								info += shortSHA;
-								info += "\nAuthor: ";
-								info += g_SelectedCommit->AuthorName;
-								info += " (";
-								info += g_SelectedCommit->AuthorEmail;
-								info += ")\nDate: ";
-								info += g_SelectedCommit->AuthorDate;
-								info += "\nMessage: ";
-								info += g_SelectedCommit->Message;
-								info += "\n";
-								info += g_SelectedCommit->Description;
-								ImGui::SetClipboardText(info.c_str());
-							}
-
-							ImGui::EndPopup();
-						}
-					}
-				}
-
-				ImGui::EndTable();
-			}
-
-			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
-
 			bool branchCreated = false;
-			if (g_SelectedCommit)
+
+			ImGui::Begin(repoData->Name.c_str(), opened);
+
+			if (ImGui::BeginTable("RepoViewTable", 2, ImGuiTableFlags_Resizable | ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_NoPadInnerX | ImGuiTableFlags_NoPadOuterX))
 			{
-				if (action == Action::CreateBranch)
-				{
-					ImGui::OpenPopup("Create Branch");
-				}
-				if (action == Action::CheckoutCommit)
-				{
-					ImGui::OpenPopup("Checkout Commit");
-				}
-				if (action == Action::CheckoutBranch)
-				{
-					UpdateHead(*repoData);
-				}
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
 
-				if (ShowModal("Create Branch"))
+				constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+				if (ImGui::TreeNodeEx("Branches", treeFlags))
 				{
-					ImGui::TextDisabled("Use '/' as a path separator to create folders");
-
-					if (ImGui::BeginTable("BranchTable", 2))
+					for (const auto& [branchRef, branchName] : repoData->Branches)
 					{
-						ImGui::TableSetupColumn("Col1", columnFlags | ImGuiTableColumnFlags_WidthFixed);
-						ImGui::TableSetupColumn("Col2", columnFlags);
+						bool open = ImGui::TreeNodeEx(branchName.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+						if (open)
+							ImGui::TreePop();
+					}
+					ImGui::TreePop();
+				}
 
+				ImGui::TableNextColumn();
+
+				if (repoData->HeadBranch)
+					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).c_str());
+				else
+					ImGui::TextUnformatted("Detached HEAD");
+
+				static ImGuiTextFilter filter;
+				filter.Draw();
+
+				git_checkout_options safeCheckoutOp = { GIT_CHECKOUT_OPTIONS_VERSION, GIT_CHECKOUT_SAFE | GIT_CHECKOUT_UPDATE_SUBMODULES };
+				//safeCheckoutOp.progress_cb = checkout_progress;
+				safeCheckoutOp.dir_mode = 0777;
+				safeCheckoutOp.file_mode = 0777;
+				git_checkout_options forceCheckoutOp = { GIT_CHECKOUT_OPTIONS_VERSION, GIT_CHECKOUT_FORCE | GIT_CHECKOUT_UPDATE_SUBMODULES };
+				//forceCheckoutOp.progress_cb = checkout_progress;
+				forceCheckoutOp.dir_mode = 0777;
+				forceCheckoutOp.file_mode = 0777;
+
+				constexpr ImGuiTableFlags tableFlags =
+					ImGuiTableFlags_PadOuterX |
+					ImGuiTableFlags_ContextMenuInBody |
+					ImGuiTableFlags_ScrollY;
+
+				constexpr ImGuiTableColumnFlags columnFlags =
+					ImGuiTableColumnFlags_NoHide |
+					ImGuiTableColumnFlags_NoHeaderLabel;
+
+				static char* error = nullptr;
+				const float lineHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
+
+				constexpr uint32_t maxRows = 25000;
+				constexpr uint32_t startPage = 0;
+				const uint32_t totalPages = static_cast<uint32_t>(repoData->Commits.size()) / maxRows;
+				static uint32_t currentPage = 0;
+				if (totalPages > 1)
+					ImGui::SliderScalar("Pages", ImGuiDataType_U32, &currentPage, &startPage, &totalPages);
+
+				if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
+				{
+					ImGuiStyle& style = ImGui::GetStyle();
+
+					ImGui::TableSetupColumn("Message", columnFlags);
+					ImGui::TableSetupColumn("AuthorName", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+					ImGui::TableSetupColumn("CommitID", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+					ImGui::TableSetupColumn("AuthorDate", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+
+					bool disabled = true;
+					uint32_t start = maxRows * currentPage;
+					uint32_t end = start + (currentPage == totalPages ? static_cast<uint32_t>(repoData->Commits.size()) % maxRows : maxRows);
+					int row = 0;
+					for (uint32_t i = start; i < end; ++i)
+					{
+						CommitData& data = repoData->Commits[i];
+						if (filter.IsActive() && !(filter.PassFilter(data.CommitID) || filter.PassFilter(data.Message) || filter.PassFilter(data.Description) || filter.PassFilter(data.AuthorName) || filter.PassFilter(data.AuthorEmail)))
+							continue;
+
+						if (row == ImGui::TableGetHoveredRow())
+						{
+							ImGui::BeginTooltip();
+							ImGui::Text("Commit ID: %s", data.CommitID);
+							ImGui::Text("Internal ID: %u", data.ID);
+							ImGui::EndTooltip();
+						}
+
+						if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
+							g_SelectedCommit = &data;
+
+						++row;
 						ImGui::TableNextRow();
 						ImGui::TableNextColumn();
+						if (repoData->BranchHeads.find(data.ID) != repoData->BranchHeads.end())
+						{
+							std::vector<BranchData>& branches = repoData->BranchHeads.at(data.ID);
+							for (BranchData& branch : branches)
+							{
+								const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
+								const char* branchName = repoData->Branches.at(branch.Branch).c_str();
+								ImVec2 size = ImGui::CalcTextSize(branchName);
+								if (isHeadBranch)
+									size.x += lineHeightWithSpacing;
+								ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
+								size.x += style.FramePadding.x;
+								size.y += style.FramePadding.y * 0.75f;
+								rectMin.x -= style.FramePadding.x * 0.5f;
+								rectMin.y -= style.FramePadding.y * 0.5f;
+								ImGui::RenderFrame(rectMin, rectMin + size, branch.Color, true, 2.0f);
+								if (isHeadBranch)
+								{
+									ImGui::PushFont(g_BoldFont);
+									ImGui::Text("%s%s", ICON_MDI_CHECK_ALL, branchName);
+									ImGui::PopFont();
+								}
+								else
+								{
+									ImGui::TextUnformatted(branchName);
+								}
+								ImGui::SameLine(0, lineHeightWithSpacing);
+							}
+						}
 
-						ImGui::TextUnformatted("Create Branch at:");
+						const bool isHead = data.ID == repoData->Head;
+						if (!g_SelectedCommit && isHead)
+							g_SelectedCommit = &data;
+						const bool selected = g_SelectedCommit && g_SelectedCommit->Commit == data.Commit;
+
+						if (disabled && isHead)
+							disabled = false;
+
+						if (isHead)	ImGui::PushFont(g_BoldFont);
+						if (selected) ImGui::PushStyleColor(ImGuiCol_Text, { 0.9f, 0.9f, 0.9f, 1.0f });
+						ImGui::BeginDisabled(disabled);
+						ImGui::TextUnformatted(data.Message);
 						ImGui::TableNextColumn();
+						ImGui::TextUnformatted(data.AuthorName);
+						ImGui::TableNextColumn();
+						ImGui::TextUnformatted(data.CommitID, data.CommitID + SHORT_SHA_LENGTH);
+						ImGui::TableNextColumn();
+						ImGui::TextUnformatted(data.AuthorDate, data.AuthorDate + strlen(data.AuthorDate) - 3);
+						ImGui::EndDisabled();
+						if (selected) ImGui::PopStyleColor();
+						if (isHead)	ImGui::PopFont();
+
+						if (selected)
+						{
+							ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImColor(0.14f, 0.42f, 0.82f, 1.0f));
+
+							if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(1))
+								ImGui::OpenPopup("CommitPopup", ImGuiPopupFlags_NoOpenOverExistingPopup);
+							if (ImGui::BeginPopup("CommitPopup"))
+							{
+								if (repoData->BranchHeads.find(data.ID) != repoData->BranchHeads.end())
+								{
+									std::vector<BranchData>& branches = repoData->BranchHeads.at(data.ID);
+									for (BranchData& branch : branches)
+									{
+										if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).c_str()))
+										{
+											Stopwatch sw("Branch Checkout");
+
+											action = Action::CheckoutBranch;
+											int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data.Commit), &safeCheckoutOp);
+											if (err >= 0)
+												err = git_repository_set_head(repoData->Repository, repoData->Branches.at(branch.Branch).c_str());
+
+											if (err < 0)
+												error = git_error_last()->message;
+										}
+									}
+									ImGui::Separator();
+								}
+								if (ImGui::MenuItem("New Branch"))
+								{
+									action = Action::CreateBranch;
+								}
+
+								if (repoData->HeadBranch && !isHead)
+								{
+									char resetString[512];
+									snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).c_str());
+									ImGui::Separator();
+									if (ImGui::BeginMenu(resetString))
+									{
+										if (ImGui::MenuItem("Soft (Move the head to the given commit)"))
+										{
+											Stopwatch sw("Soft Reset");
+
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_SOFT, &safeCheckoutOp) < 0)
+												error = git_error_last()->message;
+
+											action = Action::Reset;
+										}
+										if (ImGui::MenuItem("Mixed (Soft + reset index to the commit)"))
+										{
+											Stopwatch sw("Mixed Reset");
+
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_MIXED, &safeCheckoutOp) < 0)
+												error = git_error_last()->message;
+
+											action = Action::Reset;
+										}
+										if (ImGui::MenuItem("Hard (Mixed + changes in working tree discarded)"))
+										{
+											Stopwatch sw("Hard Reset");
+
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_HARD, &forceCheckoutOp) < 0)
+												error = git_error_last()->message;
+
+											action = Action::Reset;
+										}
+
+										ImGui::EndMenu();
+									}
+								}
+
+								ImGui::Separator();
+								if (ImGui::MenuItem("Checkout Commit"))
+								{
+									action = Action::CheckoutCommit;
+								}
+
+								ImGui::Separator();
+								if (ImGui::MenuItem("Copy Commit SHA"))
+								{
+									ImGui::SetClipboardText(g_SelectedCommit->CommitID);
+								}
+								if (ImGui::MenuItem("Copy Commit Info"))
+								{
+									char shortSHA[8];
+									strncpy_s(shortSHA, g_SelectedCommit->CommitID, SHORT_SHA_LENGTH);
+									std::string info = "SHA: ";
+									info += shortSHA;
+									info += "\nAuthor: ";
+									info += g_SelectedCommit->AuthorName;
+									info += " (";
+									info += g_SelectedCommit->AuthorEmail;
+									info += ")\nDate: ";
+									info += g_SelectedCommit->AuthorDate;
+									info += "\nMessage: ";
+									info += g_SelectedCommit->Message;
+									info += "\n";
+									info += g_SelectedCommit->Description;
+									ImGui::SetClipboardText(info.c_str());
+								}
+
+								ImGui::EndPopup();
+							}
+						}
+					}
+
+					ImGui::EndTable();
+				}
+
+				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
+
+				if (g_SelectedCommit)
+				{
+					if (action == Action::CreateBranch)
+					{
+						ImGui::OpenPopup("Create Branch");
+					}
+					if (action == Action::CheckoutCommit)
+					{
+						ImGui::OpenPopup("Checkout Commit");
+					}
+					if (action == Action::CheckoutBranch)
+					{
+						UpdateHead(*repoData);
+					}
+
+					if (ShowModal("Create Branch"))
+					{
+						ImGui::TextDisabled("Use '/' as a path separator to create folders");
+
+						if (ImGui::BeginTable("BranchTable", 2))
+						{
+							ImGui::TableSetupColumn("Col1", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+							ImGui::TableSetupColumn("Col2", columnFlags);
+
+							ImGui::TableNextRow();
+							ImGui::TableNextColumn();
+
+							ImGui::TextUnformatted("Create Branch at:");
+							ImGui::TableNextColumn();
+							ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, g_SelectedCommit->CommitID);
+							ImGui::SameLine();
+							ImGui::TextWrapped("%s", g_SelectedCommit->Message);
+
+							ImGui::TableNextRow();
+							ImGui::TableNextColumn();
+
+							ImGui::TextUnformatted("Branch name:");
+							ImGui::TableNextColumn();
+							ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+							static char branchName[256] = "";
+							ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256);
+
+							ImGui::TableNextRow();
+							ImGui::TableNextColumn();
+							ImGui::TableNextColumn();
+
+							static bool checkoutAfterCreate = false;
+							ImGui::Checkbox("Check out after create", &checkoutAfterCreate);
+
+							ImGui::TableNextRow();
+							ImGui::TableNextColumn();
+							ImGui::TableNextColumn();
+
+							if (ImGui::Button("Create"))
+							{
+								git_reference* outBranch = nullptr;
+								int err = git_branch_create(&outBranch, repoData->Repository, branchName, g_SelectedCommit->Commit, 0);
+
+								if (outBranch)
+									branchCreated = true;
+
+								if (err >= 0 && checkoutAfterCreate)
+									err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(g_SelectedCommit->Commit), &safeCheckoutOp);
+
+								if (err >= 0 && checkoutAfterCreate)
+								{
+									char brName[512];
+									snprintf(brName, 512, "refs/heads/%s", branchName);
+									err = git_repository_set_head(repoData->Repository, brName);
+									UpdateHead(*repoData);
+								}
+
+								if (err < 0)
+									error = git_error_last()->message;
+
+								memset(branchName, 0, 256);
+								ImGui::CloseCurrentPopup();
+							}
+
+							ImGui::SameLine();
+
+							if (ImGui::Button("Cancel"))
+							{
+								ImGui::CloseCurrentPopup();
+							}
+
+							ImGui::EndTable();
+						}
+
+						ImGui::EndPopup();
+					}
+
+					if (ShowModal("Checkout Commit"))
+					{
+						ImGui::TextUnformatted("Checkout a particular revision. Repository will be in detached HEAD state.");
+
+						const float lineHeight = ImGui::GetTextLineHeight();
+						ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
+
+						ImGui::TextUnformatted("Commit to checkout:");
+						ImGui::SameLine();
 						ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, g_SelectedCommit->CommitID);
 						ImGui::SameLine();
 						ImGui::TextWrapped("%s", g_SelectedCommit->Message);
 
-						ImGui::TableNextRow();
-						ImGui::TableNextColumn();
+						ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
 
-						ImGui::TextUnformatted("Branch name:");
-						ImGui::TableNextColumn();
-						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-						static char branchName[256] = "";
-						ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256);
-
-						ImGui::TableNextRow();
-						ImGui::TableNextColumn();
-						ImGui::TableNextColumn();
-
-						static bool checkoutAfterCreate = false;
-						ImGui::Checkbox("Check out after create", &checkoutAfterCreate);
-
-						ImGui::TableNextRow();
-						ImGui::TableNextColumn();
-						ImGui::TableNextColumn();
-
-						if (ImGui::Button("Create"))
+						if (ImGui::Button("Checkout Commit"))
 						{
-							git_reference* outBranch = nullptr;
-							int err = git_branch_create(&outBranch, repoData->Repository, branchName, g_SelectedCommit->Commit, 0);
-
-							if (outBranch)
-								branchCreated = true;
-
-							if (err >= 0 && checkoutAfterCreate)
-								err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(g_SelectedCommit->Commit), &safeCheckoutOp);
-
-							if (err >= 0 && checkoutAfterCreate)
-							{
-								char brName[512];
-								snprintf(brName, 512, "refs/heads/%s", branchName);
-								err = git_repository_set_head(repoData->Repository, brName);
-								UpdateHead(*repoData);
-							}
+							int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(g_SelectedCommit->Commit), &safeCheckoutOp);
+							if (err >= 0)
+								err = git_repository_set_head_detached(repoData->Repository, git_commit_id(g_SelectedCommit->Commit));
 
 							if (err < 0)
 								error = git_error_last()->message;
 
-							memset(branchName, 0, 256);
+							UpdateHead(*repoData);
+
 							ImGui::CloseCurrentPopup();
 						}
 
@@ -904,83 +1046,44 @@ namespace QuickGit
 							ImGui::CloseCurrentPopup();
 						}
 
-						ImGui::EndTable();
-					}
-
-					ImGui::EndPopup();
-				}
-
-				if (ShowModal("Checkout Commit"))
-				{
-					ImGui::TextUnformatted("Checkout a particular revision. Repository will be in detached HEAD state.");
-
-					const float lineHeight = ImGui::GetTextLineHeight();
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
-
-					ImGui::TextUnformatted("Commit to checkout:");
-					ImGui::SameLine();
-					ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, g_SelectedCommit->CommitID);
-					ImGui::SameLine();
-					ImGui::TextWrapped("%s", g_SelectedCommit->Message);
-
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
-
-					if (ImGui::Button("Checkout Commit"))
-					{
-						int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(g_SelectedCommit->Commit), &safeCheckoutOp);
-						if (err >= 0)
-							err = git_repository_set_head_detached(repoData->Repository, git_commit_id(g_SelectedCommit->Commit));
-
-						if (err < 0)
-							error = git_error_last()->message;
-
-						UpdateHead(*repoData);
-
-						ImGui::CloseCurrentPopup();
-					}
-
-					ImGui::SameLine();
-
-					if (ImGui::Button("Cancel"))
-					{
-						ImGui::CloseCurrentPopup();
-					}
-
-					ImGui::EndPopup();
-				}
-			}
-
-			// Error Window
-			{
-				static char gitErrorStr[2048] = "";
-				if (error && gitErrorStr[0] == '\0')
-				{
-					strncpy_s(gitErrorStr, error, strlen(error));
-					ImGui::OpenPopup("Error");
-				}
-
-				if (gitErrorStr[0] != '\0')
-				{
-					const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-					ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-					if (ImGui::BeginPopupModal("Error"))
-					{
-						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-						ImGui::InputText("##GitError", gitErrorStr, strlen(gitErrorStr), ImGuiInputTextFlags_ReadOnly);
-
-						if (ImGui::Button("OK", ImVec2(120, 0)))
-						{
-							gitErrorStr[0] = '\0';
-							error = nullptr;
-							ImGui::CloseCurrentPopup();
-						}
-
 						ImGui::EndPopup();
 					}
 				}
-			}
 
-			ImGui::PopStyleVar();
+				// Error Window
+				{
+					static char gitErrorStr[2048] = "";
+					if (error && gitErrorStr[0] == '\0')
+					{
+						strncpy_s(gitErrorStr, error, strlen(error));
+						ImGui::OpenPopup("Error");
+					}
+
+					if (gitErrorStr[0] != '\0')
+					{
+						const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+						ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+						if (ImGui::BeginPopupModal("Error"))
+						{
+							ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+							ImGui::InputText("##GitError", gitErrorStr, strlen(gitErrorStr), ImGuiInputTextFlags_ReadOnly);
+
+							if (ImGui::Button("OK", ImVec2(120, 0)))
+							{
+								gitErrorStr[0] = '\0';
+								error = nullptr;
+								ImGui::CloseCurrentPopup();
+							}
+
+							ImGui::EndPopup();
+						}
+					}
+				}
+
+				ImGui::PopStyleVar();
+
+				ImGui::EndTable();
+			}
 
 			ImGui::End();
 

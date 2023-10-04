@@ -593,6 +593,36 @@ namespace QuickGit
 
 			ImGui::Begin(repoData->Name.c_str(), opened);
 
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+
+				ImGui::Text("Uncommitted Files %u", repoData->UncommittedFiles);
+				ImGui::Text("Branches: %u", repoData->Branches.size());
+				ImGui::Text("Commits: %u", repoData->Commits.size());
+				bool headFound = false;
+				if (repoData->BranchHeads.find(repoData->Head) != repoData->BranchHeads.end())
+				{
+					const auto& branches = repoData->BranchHeads.at(repoData->Head);
+					for (auto& branch : branches)
+					{
+						if (branch.Branch == repoData->HeadBranch)
+						{
+							ImGui::Text("Head: %s", repoData->Branches.at(branch.Branch).Name.c_str());
+							headFound = true;
+							break;
+						}
+					}
+				}
+				if (!headFound)
+				{
+					uint64_t commitIndex = repoData->CommitsIndexMap.at(repoData->Head);
+					ImGui::Text("Detached HEAD: %s", repoData->Commits.at(commitIndex).CommitID);
+				}
+
+				ImGui::EndTooltip();
+			}
+
 			if (ImGui::BeginTable("RepoViewTable", 2, ImGuiTableFlags_Resizable | ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_NoPadInnerX | ImGuiTableFlags_NoPadOuterX))
 			{
 				ImGui::TableNextRow();

@@ -31,7 +31,7 @@ workspace "QuickGit"
 
 -- Library directories relavtive to root folder (solution directory)
 LibDir = {}
-LibDir["LibGit2"] = "%{wks.location}/QuickGit/vendor/libgit2/build/Debug"
+LibDir["LibGit2"] = "%{wks.location}/QuickGit/vendor/libgit2/build/Release"
 
 -- Bin directories relavtive to root folder (solution directory)
 BinDir = {}

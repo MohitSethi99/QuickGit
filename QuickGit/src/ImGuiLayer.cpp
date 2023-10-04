@@ -20,11 +20,9 @@
 
 #define SHORT_SHA_LENGTH 7
 #define COMMIT_ID_LEN 41
-#define COMMIT_MSG_LEN 256
-#define COMMIT_DESC_LEN 512
-#define COMMIT_NAME_EMAIL_LEN 128
-#define COMMIT_DATE_LEN 32
-#define COMMIT_TIMEZONE_LEN 8
+#define COMMIT_MSG_LEN 128
+#define COMMIT_NAME_LEN 40
+#define COMMIT_DATE_LEN 24
 
 struct DescendingComparator
 {
@@ -40,30 +38,21 @@ namespace QuickGit
 
 	struct CommitData
 	{
+		char Message[COMMIT_MSG_LEN];
+		char AuthorName[COMMIT_NAME_LEN];
+		char CommitID[COMMIT_ID_LEN];
+		char AuthorDate[COMMIT_DATE_LEN];
+
 		git_commit* Commit;
 		git_time_t CommitTime;
 		UUID ID;
-
-		char CommitID[COMMIT_ID_LEN];
-		char Message[COMMIT_MSG_LEN];
-		char AuthorName[COMMIT_NAME_EMAIL_LEN];
-		char AuthorEmail[COMMIT_NAME_EMAIL_LEN];
-		char AuthorDate[COMMIT_DATE_LEN];
-		char AuthorTimezoneOffset[COMMIT_TIMEZONE_LEN];
-
-		char CommitterName[COMMIT_NAME_EMAIL_LEN];
-		char CommitterEmail[COMMIT_NAME_EMAIL_LEN];
-		char CommitterDate[COMMIT_DATE_LEN];
-		char CommitterTimezoneOffset[COMMIT_TIMEZONE_LEN];
-
-		char Description[COMMIT_DESC_LEN];
 	};
 
 	enum class BranchType { Remote, Local };
 
 	struct BranchData
 	{
-		git_reference* Branch;
+		git_reference* Branch = nullptr;
 
 		BranchType Type;
 		uint32_t Color;
@@ -303,9 +292,7 @@ namespace QuickGit
 					if (git_commit_lookup(&commit, repo, &oid) == 0)
 					{
 						const git_signature* author = git_commit_author(commit);
-						const git_signature* committer = git_commit_committer(commit);
 						const char* commitSummary = git_commit_summary(commit);
-						const char* commitDesc = git_commit_body(commit);
 						const UUID id = GenUUID(idStr.c_str());;
 
 						CommitData cd;
@@ -320,26 +307,12 @@ namespace QuickGit
 						else
 							memset(cd.Message, 0, sizeof(cd.Message));
 
-						if (commitDesc)
-							strncpy_s(cd.Description, commitDesc, sizeof(cd.Description) - 1);
-						else
-							memset(cd.Description, 0, sizeof(cd.Description));
-
 						strncpy_s(cd.AuthorName, author->name, sizeof(cd.AuthorName) - 1);
-						strncpy_s(cd.AuthorEmail, author->email, sizeof(cd.AuthorEmail) - 1);
-						sprintf_s(cd.AuthorTimezoneOffset, "%c%d:%d", author->when.sign, author->when.offset / 60, author->when.offset % 60);
-						strncpy_s(cd.CommitterName, committer->name, sizeof(cd.CommitterName) - 1);
-						strncpy_s(cd.CommitterEmail, committer->email, sizeof(cd.CommitterEmail) - 1);
-						sprintf_s(cd.CommitterTimezoneOffset, "%c%d:%d", committer->when.sign, committer->when.offset / 60, committer->when.offset % 60);
 
 						git_time_t timestamp = author->when.time;
 						tm localTime;
 						localtime_s(&localTime, &timestamp);
 						strftime(cd.AuthorDate, sizeof(cd.AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
-
-						timestamp = committer->when.time;
-						localtime_s(&localTime, &timestamp);
-						strftime(cd.CommitterDate, sizeof(cd.CommitterDate), "%d %b %Y %H:%M:%S", &localTime);
 
 						data->Commits.emplace_back(std::move(cd));
 						data->CommitsIndexMap.emplace(id, data->Commits.size() - 1);
@@ -661,8 +634,70 @@ namespace QuickGit
 		return err;
 	}
 
+
+	struct Commit
+	{
+		git_commit* CommitPtr = nullptr;
+		char CommitID[COMMIT_ID_LEN];
+
+		std::string AuthorName;
+		std::string AuthorEmail;
+		std::string AuthorDateTime;
+		std::string AuthorTimezoneOffset;
+
+		std::string CommitterName;
+		std::string CommitterEmail;
+		std::string CommitterDateTime;
+		std::string CommitterTimezoneOffset;
+
+		std::string Message;
+		std::string Description;
+	};
+
+
+	void GetCommit(git_commit* commit, Commit* out)
+	{
+		out->CommitPtr = commit;
+
+		const git_oid* oid = git_commit_id(commit);
+		strncpy_s(out->CommitID, git_oid_tostr_s(oid), COMMIT_ID_LEN);
+
+		const git_signature* author = git_commit_author(commit);
+		const git_signature* committer = git_commit_committer(commit);
+		const char* commitSummary = git_commit_summary(commit);
+		const char* commitDesc = git_commit_body(commit);
+
+		out->AuthorName = author->name;
+		out->AuthorEmail = author->email;
+		char sign = committer->when.offset >= 0 ? '+' : '-';
+		out->AuthorTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(author->when.offset) / 60, author->when.offset % 60);
+
+		git_time_t timestamp = author->when.time;
+		tm localTime;
+		localtime_s(&localTime, &timestamp);
+		char dateTime[COMMIT_DATE_LEN];
+		strftime(dateTime, sizeof(dateTime), "%d %b %Y %H:%M:%S", &localTime);
+		out->AuthorDateTime = dateTime;
+
+		out->CommitterName = committer->name;
+		out->CommitterEmail = committer->email;
+		sign = committer->when.offset >= 0 ? '+' : '-';
+		out->CommitterTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(committer->when.offset) / 60, committer->when.offset % 60);
+
+		timestamp = committer->when.time;
+		localtime_s(&localTime, &timestamp);
+		strftime(dateTime, sizeof(dateTime), "%d %b %Y %H:%M:%S", &localTime);
+		out->CommitterDateTime = dateTime;
+
+		out->Message = commitSummary ? commitSummary : "";
+		out->Description = commitDesc ? commitDesc : "";
+	}
+
 	void ShowRepoWindow(RepoData* repoData, bool* opened)
 	{
+		constexpr ImGuiTableColumnFlags columnFlags = ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoHeaderLabel;
+		constexpr ImGuiTableFlags tooltipTableFlags = ImGuiTableFlags_SizingStretchProp;
+
 		if (repoData)
 		{
 			enum class Action
@@ -683,27 +718,47 @@ namespace QuickGit
 			{
 				ImGui::BeginTooltip();
 
-				ImGui::Text("Uncommitted Files %u", repoData->UncommittedFiles);
-				ImGui::Text("Branches: %u", repoData->Branches.size());
-				ImGui::Text("Commits: %u", repoData->Commits.size());
-				bool headFound = false;
-				if (repoData->BranchHeads.find(repoData->Head) != repoData->BranchHeads.end())
+				if (ImGui::BeginTable("##RepositoryTooltipTable", 2, tooltipTableFlags))
 				{
-					const auto& branches = repoData->BranchHeads.at(repoData->Head);
-					for (auto& branch : branches)
+					ImGui::TableSetupColumn("CommitTooltipTableCol1", columnFlags | ImGuiTableColumnFlags_WidthFixed);
+					ImGui::TableSetupColumn("CommitTooltipTableCol2", columnFlags);
+
+					ImGui::TableNextRow();
+					ImGui::TableNextColumn();
+
+					ImGui::TextUnformatted("Repository Path:");
+					ImGui::TextUnformatted("Uncommitted Files:");
+					ImGui::TextUnformatted("Branches:");
+					ImGui::TextUnformatted("Commits:");
+					ImGui::TextUnformatted("Head:");
+
+					ImGui::TableNextColumn();
+
+					ImGui::TextUnformatted(repoData->Filepath.c_str());
+					ImGui::Text("%u", repoData->UncommittedFiles);
+					ImGui::Text("%u", repoData->Branches.size());
+					ImGui::Text("%u", repoData->Commits.size());
+					bool headFound = false;
+					if (repoData->BranchHeads.find(repoData->Head) != repoData->BranchHeads.end())
 					{
-						if (branch.Branch == repoData->HeadBranch)
+						const auto& branches = repoData->BranchHeads.at(repoData->Head);
+						for (auto& branch : branches)
 						{
-							ImGui::Text("Head: %s", repoData->Branches.at(branch.Branch).Name.c_str());
-							headFound = true;
-							break;
+							if (branch.Branch == repoData->HeadBranch)
+							{
+								ImGui::TextUnformatted(repoData->Branches.at(branch.Branch).Name.c_str());
+								headFound = true;
+								break;
+							}
 						}
 					}
-				}
-				if (!headFound)
-				{
-					uint64_t commitIndex = repoData->CommitsIndexMap.at(repoData->Head);
-					ImGui::Text("Detached HEAD: %s", repoData->Commits.at(commitIndex).CommitID);
+					if (!headFound)
+					{
+						uint64_t commitIndex = repoData->CommitsIndexMap.at(repoData->Head);
+						ImGui::Text("%s (Detached)", repoData->Commits.at(commitIndex).CommitID);
+					}
+
+					ImGui::EndTable();
 				}
 
 				ImGui::EndTooltip();
@@ -728,6 +783,7 @@ namespace QuickGit
 
 				ImGui::TableNextColumn();
 
+				ImGui::Indent();
 				if (repoData->HeadBranch)
 					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).Name.c_str());
 				else
@@ -748,11 +804,8 @@ namespace QuickGit
 				constexpr ImGuiTableFlags tableFlags =
 					ImGuiTableFlags_PadOuterX |
 					ImGuiTableFlags_ContextMenuInBody |
+					ImGuiTableFlags_NoHostExtendY |
 					ImGuiTableFlags_ScrollY;
-
-				constexpr ImGuiTableColumnFlags columnFlags =
-					ImGuiTableColumnFlags_NoHide |
-					ImGuiTableColumnFlags_NoHeaderLabel;
 
 				static char* error = nullptr;
 				const float lineHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
@@ -763,6 +816,9 @@ namespace QuickGit
 				static uint32_t currentPage = 0;
 				if (totalPages > 1)
 					ImGui::SliderScalar("Pages", ImGuiDataType_U32, &currentPage, &startPage, &totalPages);
+
+				ImGui::Unindent();
+				ImGui::Spacing();
 
 				if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
 				{
@@ -779,27 +835,22 @@ namespace QuickGit
 					int row = 0;
 					for (uint32_t i = start; i < end; ++i)
 					{
-						CommitData& data = repoData->Commits[i];
-						if (filter.IsActive() && !(filter.PassFilter(data.CommitID) || filter.PassFilter(data.Message) || filter.PassFilter(data.Description) || filter.PassFilter(data.AuthorName) || filter.PassFilter(data.AuthorEmail)))
+						CommitData* data = &(repoData->Commits[i]);
+
+						if (filter.IsActive() && !(filter.PassFilter(data->CommitID) || filter.PassFilter(data->Message) || filter.PassFilter(data->AuthorName)))
 							continue;
 
-						if (row == ImGui::TableGetHoveredRow())
-						{
-							ImGui::BeginTooltip();
-							ImGui::Text("Commit ID: %s", data.CommitID);
-							ImGui::Text("Internal ID: %u", data.ID);
-							ImGui::EndTooltip();
-						}
-
 						if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
-							g_SelectedCommit = &data;
-
+							g_SelectedCommit = data;
+						
 						++row;
+
 						ImGui::TableNextRow();
 						ImGui::TableNextColumn();
-						if (repoData->BranchHeads.find(data.ID) != repoData->BranchHeads.end())
+						
+						if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 						{
-							std::vector<BranchData>& branches = repoData->BranchHeads.at(data.ID);
+							std::vector<BranchData>& branches = repoData->BranchHeads.at(data->ID);
 							for (BranchData& branch : branches)
 							{
 								const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
@@ -826,11 +877,11 @@ namespace QuickGit
 								ImGui::SameLine(0, lineHeightWithSpacing);
 							}
 						}
-
-						const bool isHead = data.ID == repoData->Head;
+						
+						const bool isHead = data->ID == repoData->Head;
 						if (!g_SelectedCommit && isHead)
-							g_SelectedCommit = &data;
-						const bool selected = g_SelectedCommit && g_SelectedCommit->Commit == data.Commit;
+							g_SelectedCommit = data;
+						const bool selected = g_SelectedCommit && g_SelectedCommit->Commit == data->Commit;
 
 						if (disabled && isHead)
 							disabled = false;
@@ -838,13 +889,15 @@ namespace QuickGit
 						if (isHead)	ImGui::PushFont(g_BoldFont);
 						if (selected) ImGui::PushStyleColor(ImGuiCol_Text, { 0.9f, 0.9f, 0.9f, 1.0f });
 						ImGui::BeginDisabled(disabled);
-						ImGui::TextUnformatted(data.Message);
+						
+						ImGui::TextUnformatted(data->Message);
 						ImGui::TableNextColumn();
-						ImGui::TextUnformatted(data.AuthorName);
+						ImGui::TextUnformatted(data->AuthorName);
 						ImGui::TableNextColumn();
-						ImGui::TextUnformatted(data.CommitID, data.CommitID + SHORT_SHA_LENGTH);
+						ImGui::TextUnformatted(data->CommitID, data->CommitID + SHORT_SHA_LENGTH);
 						ImGui::TableNextColumn();
-						ImGui::TextUnformatted(data.AuthorDate, data.AuthorDate + strlen(data.AuthorDate) - 3);
+						ImGui::TextUnformatted(data->AuthorDate, data->AuthorDate + strlen(data->AuthorDate) - 3);
+
 						ImGui::EndDisabled();
 						if (selected) ImGui::PopStyleColor();
 						if (isHead)	ImGui::PopFont();
@@ -857,9 +910,9 @@ namespace QuickGit
 								ImGui::OpenPopup("CommitPopup", ImGuiPopupFlags_NoOpenOverExistingPopup);
 							if (ImGui::BeginPopup("CommitPopup"))
 							{
-								if (repoData->BranchHeads.find(data.ID) != repoData->BranchHeads.end())
+								if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 								{
-									std::vector<BranchData>& branches = repoData->BranchHeads.at(data.ID);
+									std::vector<BranchData>& branches = repoData->BranchHeads.at(data->ID);
 									for (BranchData& branch : branches)
 									{
 										if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).Name.c_str()))
@@ -867,7 +920,7 @@ namespace QuickGit
 											Stopwatch sw("Branch Checkout");
 
 											action = Action::CheckoutBranch;
-											int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data.Commit), &safeCheckoutOp);
+											int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data->Commit), &safeCheckoutOp);
 											if (err >= 0)
 												err = git_repository_set_head(repoData->Repository, repoData->Branches.at(branch.Branch).Name.c_str());
 
@@ -893,7 +946,7 @@ namespace QuickGit
 										{
 											Stopwatch sw("Soft Reset");
 
-											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_SOFT, &safeCheckoutOp) < 0)
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_SOFT, &safeCheckoutOp) < 0)
 												error = git_error_last()->message;
 
 											action = Action::Reset;
@@ -902,7 +955,7 @@ namespace QuickGit
 										{
 											Stopwatch sw("Mixed Reset");
 
-											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_MIXED, &safeCheckoutOp) < 0)
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_MIXED, &safeCheckoutOp) < 0)
 												error = git_error_last()->message;
 
 											action = Action::Reset;
@@ -911,7 +964,7 @@ namespace QuickGit
 										{
 											Stopwatch sw("Hard Reset");
 
-											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data.Commit), GIT_RESET_HARD, &forceCheckoutOp) < 0)
+											if (git_reset(repoData->Repository, reinterpret_cast<const git_object*>(data->Commit), GIT_RESET_HARD, &forceCheckoutOp) < 0)
 												error = git_error_last()->message;
 
 											action = Action::Reset;
@@ -933,10 +986,14 @@ namespace QuickGit
 									if (git_email_create_from_commit(&buf, g_SelectedCommit->Commit, &op) == 0)
 									{
 										std::string diffStr = buf.ptr ? buf.ptr : "";
-										diffStr.resize(diffStr.rfind("--") + 2, '\0');
-										diffStr += "\nQuickGit";
-										diffStr += " 0.0.1";
-										diffStr += "\n\n";
+										const size_t patchEnd = diffStr.rfind("--");
+										if (patchEnd != std::string::npos)
+										{
+											diffStr.resize(patchEnd + 2, '\0');
+											diffStr += "\nQuickGit";
+											diffStr += " 0.0.1";
+											diffStr += "\n\n";
+										}
 										git_buf_free(&buf);
 										ImGui::SetClipboardText(diffStr.c_str());
 									}
@@ -949,20 +1006,22 @@ namespace QuickGit
 								}
 								if (ImGui::MenuItem("Copy Commit Info"))
 								{
+									Commit c;
+									GetCommit(g_SelectedCommit->Commit, &c);
 									char shortSHA[8];
-									strncpy_s(shortSHA, g_SelectedCommit->CommitID, SHORT_SHA_LENGTH);
+									strncpy_s(shortSHA, c.CommitID, SHORT_SHA_LENGTH);
 									std::string info = "SHA: ";
 									info += shortSHA;
 									info += "\nAuthor: ";
-									info += g_SelectedCommit->AuthorName;
+									info += c.AuthorName;
 									info += " (";
-									info += g_SelectedCommit->AuthorEmail;
+									info += c.AuthorEmail;
 									info += ")\nDate: ";
-									info += g_SelectedCommit->AuthorDate;
+									info += c.AuthorDateTime;
 									info += "\nMessage: ";
-									info += g_SelectedCommit->Message;
+									info += c.Message;
 									info += "\n";
-									info += g_SelectedCommit->Description;
+									info += c.Description;
 									ImGui::SetClipboardText(info.c_str());
 								}
 
@@ -1203,19 +1262,21 @@ namespace QuickGit
 
 
 
+
 		ImGui::Begin("Commit");
 		ImGui::Indent();
-		static CommitData* cd = nullptr;
+		static Commit cd;
 		static std::vector<Diff> diffs;
-		if (g_SelectedCommit)
-		{
-			if (g_SelectedCommit != cd)
-			{
-				diffs.clear();
-				GenerateDiff(g_SelectedCommit->Commit, diffs);
-				cd = g_SelectedCommit;
-			}
 
+		if (g_SelectedCommit && g_SelectedCommit->Commit != cd.CommitPtr)
+		{
+			GetCommit(g_SelectedCommit->Commit, &cd);
+			diffs.clear();
+			GenerateDiff(g_SelectedCommit->Commit, diffs);
+		}
+
+		if (cd.CommitPtr)
+		{
 			if (ImGui::BeginTable("CommitTopTable", 2))
 			{
 				ImGui::TableNextRow();
@@ -1224,43 +1285,43 @@ namespace QuickGit
 				ImGui::TextUnformatted("AUTHOR");
 				ImGui::Spacing();
 				ImGui::PushFont(g_BoldFont);
-				ImGui::TextUnformatted(g_SelectedCommit->AuthorName);
+				ImGui::TextUnformatted(cd.AuthorName.c_str());
 				ImGui::PopFont();
 				ImGui::SameLine();
-				ImGui::TextUnformatted(g_SelectedCommit->AuthorEmail);
-				ImGui::TextUnformatted(g_SelectedCommit->AuthorDate);
+				ImGui::TextUnformatted(cd.AuthorEmail.c_str());
+				ImGui::TextUnformatted(cd.AuthorDateTime.c_str());
 				ImGui::SameLine();
-				ImGui::TextUnformatted(g_SelectedCommit->AuthorTimezoneOffset);
+				ImGui::TextUnformatted(cd.AuthorTimezoneOffset.c_str());
 
 				ImGui::TableNextColumn();
 
 				ImGui::TextUnformatted("COMMITTER");
 				ImGui::Spacing();
 				ImGui::PushFont(g_BoldFont);
-				ImGui::TextUnformatted(g_SelectedCommit->CommitterName);
+				ImGui::TextUnformatted(cd.CommitterName.c_str());
 				ImGui::PopFont();
 				ImGui::SameLine();
-				ImGui::TextUnformatted(g_SelectedCommit->CommitterEmail);
-				ImGui::TextUnformatted(g_SelectedCommit->CommitterDate);
+				ImGui::TextUnformatted(cd.CommitterEmail.c_str());
+				ImGui::TextUnformatted(cd.CommitterDateTime.c_str());
 				ImGui::SameLine();
-				ImGui::TextUnformatted(g_SelectedCommit->CommitterTimezoneOffset);
+				ImGui::TextUnformatted(cd.CommitterTimezoneOffset.c_str());
 
 				ImGui::EndTable();
 			}
 
 			ImGui::Spacing();
-			ImGui::Text("SHA %s", g_SelectedCommit->CommitID);
+			ImGui::Text("SHA %s", cd.CommitID);
 			ImGui::Spacing();
 
 			ImGui::Separator();
 
 			ImGui::Spacing();
 			ImGui::PushFont(g_HeadingFont);
-			ImGui::TextWrapped(g_SelectedCommit->Message);
+			ImGui::TextWrapped(cd.Message.c_str());
 			ImGui::PopFont();
-			if (g_SelectedCommit->Description[0] != '\0')
+			if (!cd.Description.empty())
 			{
-				ImGui::TextWrapped(g_SelectedCommit->Description);
+				ImGui::TextWrapped(cd.Description.c_str());
 			}
 			ImGui::Spacing();
 

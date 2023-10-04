@@ -67,6 +67,7 @@ namespace QuickGit
 
 		BranchType Type;
 		uint32_t Color;
+		std::string Name;
 	};
 
 	UUID GenUUID(const char* str)
@@ -87,7 +88,7 @@ namespace QuickGit
 
 		UUID Head = 0;
 		git_reference* HeadBranch = nullptr;
-		std::unordered_map<git_reference*, std::string> Branches;
+		std::unordered_map<git_reference*, BranchData> Branches;
 		std::vector<CommitData> Commits;
 		std::unordered_map<UUID, std::vector<BranchData>> BranchHeads;
 		std::unordered_map<UUID, uint64_t> CommitsIndexMap;
@@ -179,7 +180,7 @@ namespace QuickGit
 		git_reference_free(ref);
 
 		repoData.HeadBranch = nullptr;
-		for (const auto& [branchRef, name] : repoData.Branches)
+		for (const auto& [branchRef, _] : repoData.Branches)
 		{
 			if (git_branch_is_head(branchRef) == 1)
 			{
@@ -265,9 +266,13 @@ namespace QuickGit
 				if (data->Branches.find(ref) == data->Branches.end())
 				{
 					const git_oid* targetId = git_commit_id(targetCommit);
-					data->Branches[ref] = refName;
-					BranchType type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
-					data->BranchHeads[GenUUID(git_oid_tostr_s(targetId))].emplace_back(ref, type, GenerateColor(refName));
+					BranchData branchData;
+					branchData.Branch = ref;
+					branchData.Type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
+					branchData.Color = GenerateColor(refName);
+					branchData.Name = refName;
+					data->Branches[ref] = branchData;
+					data->BranchHeads[GenUUID(git_oid_tostr_s(targetId))].push_back(std::move(branchData));
 				}
 
 				git_revwalk* walker;
@@ -596,9 +601,9 @@ namespace QuickGit
 				constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
 				if (ImGui::TreeNodeEx("Branches", treeFlags))
 				{
-					for (const auto& [branchRef, branchName] : repoData->Branches)
+					for (const auto& [branchRef, branchData] : repoData->Branches)
 					{
-						bool open = ImGui::TreeNodeEx(branchName.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+						bool open = ImGui::TreeNodeEx(branchData.Name.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf);
 						if (open)
 							ImGui::TreePop();
 					}
@@ -608,7 +613,7 @@ namespace QuickGit
 				ImGui::TableNextColumn();
 
 				if (repoData->HeadBranch)
-					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).c_str());
+					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).Name.c_str());
 				else
 					ImGui::TextUnformatted("Detached HEAD");
 
@@ -682,7 +687,7 @@ namespace QuickGit
 							for (BranchData& branch : branches)
 							{
 								const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
-								const char* branchName = repoData->Branches.at(branch.Branch).c_str();
+								const char* branchName = repoData->Branches.at(branch.Branch).Name.c_str();
 								ImVec2 size = ImGui::CalcTextSize(branchName);
 								if (isHeadBranch)
 									size.x += lineHeightWithSpacing;
@@ -741,14 +746,14 @@ namespace QuickGit
 									std::vector<BranchData>& branches = repoData->BranchHeads.at(data.ID);
 									for (BranchData& branch : branches)
 									{
-										if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).c_str()))
+										if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).Name.c_str()))
 										{
 											Stopwatch sw("Branch Checkout");
 
 											action = Action::CheckoutBranch;
 											int err = git_checkout_tree(repoData->Repository, reinterpret_cast<git_object*>(data.Commit), &safeCheckoutOp);
 											if (err >= 0)
-												err = git_repository_set_head(repoData->Repository, repoData->Branches.at(branch.Branch).c_str());
+												err = git_repository_set_head(repoData->Repository, repoData->Branches.at(branch.Branch).Name.c_str());
 
 											if (err < 0)
 												error = git_error_last()->message;
@@ -764,7 +769,7 @@ namespace QuickGit
 								if (repoData->HeadBranch && !isHead)
 								{
 									char resetString[512];
-									snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).c_str());
+									snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).Name.c_str());
 									ImGui::Separator();
 									if (ImGui::BeginMenu(resetString))
 									{

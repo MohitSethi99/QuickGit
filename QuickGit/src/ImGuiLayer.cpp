@@ -103,6 +103,15 @@ namespace QuickGit
 		}
 	};
 
+	struct Diff
+	{
+		git_delta_t Status;
+		uint64_t OldFileSize;
+		uint64_t NewFileSize;
+		std::string File;
+		std::string Patch;
+	};
+
 	GLFWwindow* g_Window;
 	char g_Path[2048];
 	std::vector<std::unique_ptr<RepoData>> g_SelectedRepos;
@@ -575,6 +584,83 @@ namespace QuickGit
 		return result;
 	}
 
+	ImVec4 GetPatchStatusColor(git_delta_t status)
+	{
+		switch (status)
+		{
+			case GIT_DELTA_UNMODIFIED	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_ADDED		: return ImVec4(0.10f, 0.60f, 0.10f, 1.00f);
+			case GIT_DELTA_DELETED		: return ImVec4(0.90f, 0.25f, 0.25f, 1.00f);
+			case GIT_DELTA_MODIFIED		: return ImVec4(0.60f, 0.60f, 0.10f, 1.00f);
+			case GIT_DELTA_RENAMED		: return ImVec4(0.60f, 0.20f, 0.80f, 1.00f);
+			case GIT_DELTA_COPIED 		: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_IGNORED		: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_UNTRACKED	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_TYPECHANGE	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_UNREADABLE	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_CONFLICTED	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			default						: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+		}
+	}
+
+	int GenerateDiff(git_commit* commit, std::vector<Diff>& out)
+	{
+		git_diff* diff = nullptr;
+		git_commit* parent = nullptr;
+		git_tree* commitTree = nullptr;
+		git_tree* parentTree = nullptr;
+		
+		int err = git_commit_parent(&parent, commit, 0);
+		if (err >= 0)
+			err = git_commit_tree(&commitTree, commit);
+		if (err >= 0)
+			err = git_commit_tree(&parentTree, parent);
+
+		if (err >= 0)
+		{
+			git_diff_options diffOp = GIT_DIFF_OPTIONS_INIT;
+			diffOp.flags = GIT_DIFF_PATIENCE | GIT_DIFF_MINIMAL;
+			err = git_diff_tree_to_tree(&diff, git_commit_owner(commit), parentTree, commitTree, &diffOp);
+		}
+
+		if (diff)
+		{
+			size_t diffDeltas = git_diff_num_deltas(diff);
+			for (size_t i = 0; i < diffDeltas; ++i)
+			{
+				const git_diff_delta* delta = git_diff_get_delta(diff, i);
+				git_patch* patch = nullptr;
+				if (git_patch_from_diff(&patch, diff, i) == 0)
+				{
+					git_buf patchStr = GIT_BUF_INIT;
+					if (git_patch_to_buf(&patchStr, patch) == 0 && patchStr.ptr)
+					{
+						std::string_view patchString = patchStr.ptr;
+						size_t start = patchString.find_first_of('@');
+						if (start != std::string::npos)
+							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, patchStr.ptr + start);
+						else
+							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, "@@BinaryData");
+						git_buf_free(&patchStr);
+					}
+
+					git_patch_free(patch);
+				}
+			}
+		}
+
+		if (parentTree)
+			git_tree_free(parentTree);
+		if (commitTree)
+			git_tree_free(commitTree);
+		if (parent)
+			git_commit_free(parent);
+		if (diff)
+			git_diff_free(diff);
+
+		return err;
+	}
+
 	void ShowRepoWindow(RepoData* repoData, bool* opened)
 	{
 		if (repoData)
@@ -839,6 +925,21 @@ namespace QuickGit
 								if (ImGui::MenuItem("Checkout Commit"))
 								{
 									action = Action::CheckoutCommit;
+								}
+								if (ImGui::MenuItem("Copy as Patch"))
+								{
+									git_buf buf = GIT_BUF_INIT;
+									git_email_create_options op = GIT_EMAIL_CREATE_OPTIONS_INIT;
+									if (git_email_create_from_commit(&buf, g_SelectedCommit->Commit, &op) == 0)
+									{
+										std::string diffStr = buf.ptr ? buf.ptr : "";
+										diffStr.resize(diffStr.rfind("--") + 2, '\0');
+										diffStr += "\nQuickGit";
+										diffStr += " 0.0.1";
+										diffStr += "\n\n";
+										git_buf_free(&buf);
+										ImGui::SetClipboardText(diffStr.c_str());
+									}
 								}
 
 								ImGui::Separator();
@@ -1105,17 +1206,13 @@ namespace QuickGit
 		ImGui::Begin("Commit");
 		ImGui::Indent();
 		static CommitData* cd = nullptr;
-		static std::string diffStr = "";
+		static std::vector<Diff> diffs;
 		if (g_SelectedCommit)
 		{
 			if (g_SelectedCommit != cd)
 			{
-				git_buf buf = GIT_BUF_INIT;
-				git_email_create_options op = GIT_EMAIL_CREATE_OPTIONS_INIT;
-				git_email_create_from_commit(&buf, g_SelectedCommit->Commit, &op);
-				diffStr = buf.ptr ? buf.ptr : "";
-				diffStr[diffStr.find_last_of("libgit2")] = '\0';
-				git_buf_free(&buf);
+				diffs.clear();
+				GenerateDiff(g_SelectedCommit->Commit, diffs);
 				cd = g_SelectedCommit;
 			}
 
@@ -1169,7 +1266,47 @@ namespace QuickGit
 
 			ImGui::Separator();
 
-			ImGui::InputTextMultiline("##CommitInlineDiff", &diffStr[0], diffStr.size(), ImGui::GetContentRegionAvail(), ImGuiInputTextFlags_ReadOnly);
+			ImGui::Spacing();
+			for (auto& diff : diffs)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(diff.Status));
+				bool open = ImGui::TreeNodeEx(diff.File.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth);
+				ImGui::PopStyleColor();
+				if (open)
+				{
+					float frameHeight = ImGui::GetFrameHeightWithSpacing();
+					ImGui::Indent(frameHeight);
+					if (diff.Patch == "@@BinaryData")
+					{
+						ImGui::TextUnformatted(diff.Patch.c_str());
+						if (diff.NewFileSize)
+						{
+							ImGui::Indent(frameHeight);
+							if (diff.OldFileSize)
+							{
+								ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_DELETED));
+								ImGui::Text("Old: %u Bytes", diff.OldFileSize);
+								ImGui::PopStyleColor();
+								ImGui::SameLine(0, frameHeight);
+							}
+
+							ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_ADDED));
+							ImGui::Text("New: %u Bytes", diff.NewFileSize);
+							ImGui::PopStyleColor();
+							ImGui::Unindent(frameHeight);
+						}
+					}
+					else
+					{
+						ImVec2 size = ImGui::CalcTextSize(diff.Patch.c_str());
+						size.y += ImGui::GetFrameHeightWithSpacing();
+						ImGui::InputTextMultiline(diff.File.c_str(), &diff.Patch[0], diff.Patch.size(), { ImGui::GetContentRegionAvail().x, size.y }, ImGuiInputTextFlags_ReadOnly);
+					}
+
+					ImGui::Unindent(frameHeight);
+					ImGui::TreePop();
+				}
+			}
 		}
 		ImGui::Unindent();
 		ImGui::End();

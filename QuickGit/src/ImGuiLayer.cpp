@@ -19,12 +19,12 @@
 #include "Client.h"
 
 #define SHORT_SHA_LENGTH 7
-#define COMMIT_ID_LEN 64
+#define COMMIT_ID_LEN 41
 #define COMMIT_MSG_LEN 256
-#define COMMIT_DESC_LEN 2048
+#define COMMIT_DESC_LEN 512
 #define COMMIT_NAME_EMAIL_LEN 128
 #define COMMIT_DATE_LEN 32
-#define COMMIT_TIMEZONE_LEN 16
+#define COMMIT_TIMEZONE_LEN 8
 
 struct DescendingComparator
 {

@@ -332,4 +332,15 @@ namespace QuickGit
 
 		return err == 0;
 	}
+
+	bool Client::RenameBranch(git_reference* branch, const char* name)
+	{
+		char buf[512];
+		snprintf(buf, 512, "refs/heads/%s", name);
+		git_reference* newRef;
+		int err = git_reference_rename(&newRef, branch, buf, 0, nullptr);
+		if (err == 0 && newRef)
+			git_reference_free(newRef);
+		return err == 0;
+	}
 }

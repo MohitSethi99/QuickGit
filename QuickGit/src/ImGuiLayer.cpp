@@ -365,12 +365,15 @@ namespace QuickGit
 				None = 0,
 				CreateBranch,
 				CheckoutBranch,
+				RenameBranch,
 				CheckoutCommit,
 				Reset
 			};
 
 			Action action = Action::None;
 			bool branchCreated = false;
+			bool branchRenamed = false;
+			static git_reference* selectedBranch = nullptr;
 
 			ImGui::Begin(repoData->Name.c_str(), opened);
 
@@ -548,11 +551,29 @@ namespace QuickGit
 									for (git_reference* branch : branchHeads)
 									{
 										BranchData& branchData = repoData->Branches.at(branch);
-										if (ImGui::MenuItem("Checkout"))
+										if (ImGui::BeginMenu(branchData.ShortName()))
 										{
-											action = Action::CheckoutBranch;
-											if (!Client::CheckoutBranch(branchData.Branch))
-												error = git_error_last()->message;
+											if (branchData.Type == BranchType::Local)
+											{
+												if (ImGui::MenuItem("Checkout"))
+												{
+													action = Action::CheckoutBranch;
+													if (!Client::CheckoutBranch(branchData.Branch))
+														error = git_error_last()->message;
+												}
+												ImGui::Separator();
+												if (ImGui::MenuItem("Rename"))
+												{
+													action = Action::RenameBranch;
+													selectedBranch = branchData.Branch;
+												}
+											}
+											if (ImGui::MenuItem("Copy Branch Name"))
+											{
+												ImGui::SetClipboardText(branchData.ShortName());
+											}
+
+											ImGui::EndMenu();
 										}
 									}
 									ImGui::Separator();
@@ -651,13 +672,17 @@ namespace QuickGit
 					{
 						ImGui::OpenPopup("Create Branch");
 					}
-					if (action == Action::CheckoutCommit)
+					if (action == Action::RenameBranch)
 					{
-						ImGui::OpenPopup("Checkout Commit");
+						ImGui::OpenPopup("Rename Branch");
 					}
 					if (action == Action::CheckoutBranch)
 					{
 						Client::UpdateHead(*repoData);
+					}
+					if (action == Action::CheckoutCommit)
+					{
+						ImGui::OpenPopup("Checkout Commit");
 					}
 
 					if (ImGuiExt::BeginPopupModal("Create Branch"))
@@ -721,6 +746,42 @@ namespace QuickGit
 							}
 
 							ImGui::EndTable();
+						}
+
+						ImGuiExt::EndPopupModal();
+					}
+
+					if (ImGuiExt::BeginPopupModal("Rename Branch"))
+					{
+						ImGui::TextDisabled("Use '/' as a path separator to create folders");
+
+						ImGui::Spacing();
+
+						static char branchName[256] = "";
+						ImGui::Text("%s %s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(selectedBranch).ShortName(), ICON_MDI_ARROW_RIGHT);
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+						ImGui::InputTextWithHint("##NewBranchName", "Enter new branch name", branchName, 256);
+
+						ImGui::BeginDisabled(branchName[0] == '\0');
+						if (ImGui::Button("Rename"))
+						{
+							if (Client::RenameBranch(selectedBranch, branchName))
+								branchRenamed = true;
+							else
+								error = git_error_last()->message;
+
+							selectedBranch = nullptr;
+							memset(branchName, 0, 256);
+							ImGui::CloseCurrentPopup();
+						}
+						ImGui::EndDisabled();
+
+						ImGui::SameLine();
+
+						if (ImGui::Button("Cancel"))
+						{
+							ImGui::CloseCurrentPopup();
 						}
 
 						ImGuiExt::EndPopupModal();
@@ -799,7 +860,7 @@ namespace QuickGit
 
 			ImGui::End();
 
-			if (branchCreated || action == Action::Reset)
+			if (branchCreated || branchRenamed || action == Action::Reset)
 				Client::Fill(repoData, repoData->Repository);
 		}
 	}

@@ -29,7 +29,7 @@ namespace QuickGit
 	struct BranchData
 	{
 		std::string Name;
-		BranchType Type : 1;
+		BranchType Type;
 		uint32_t Color;
 
 		git_reference* Branch = nullptr;
@@ -95,5 +95,6 @@ namespace QuickGit
 		static bool CheckoutCommit(git_commit* commit, bool force = false);
 		static bool Reset(git_commit* commit, git_reset_t resetType);
 		static bool CreatePatch(git_commit* commit, std::string& out);
+		static bool RenameBranch(git_reference* branch, const char* name);
 	};
 }

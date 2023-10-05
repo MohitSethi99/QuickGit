@@ -128,8 +128,8 @@ namespace QuickGit
 					branchData.Type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
 					branchData.Color = Utils::GenerateColor(refName);
 					branchData.Branch = ref;
-					data->Branches[ref] = branchData;
-					data->BranchHeads[Utils::GenUUID(git_oid_tostr_s(targetId))].push_back(std::move(branchData));
+					data->Branches[ref] = std::move(branchData);
+					data->BranchHeads[Utils::GenUUID(git_oid_tostr_s(targetId))].push_back(ref);
 				}
 
 				git_revwalk* walker;

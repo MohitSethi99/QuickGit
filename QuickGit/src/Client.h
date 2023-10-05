@@ -53,7 +53,7 @@ namespace QuickGit
 		git_reference* HeadBranch = nullptr;
 		std::unordered_map<git_reference*, BranchData> Branches;
 		std::vector<CommitData> Commits;
-		std::unordered_map<UUID, std::vector<BranchData>> BranchHeads;
+		std::unordered_map<UUID, std::vector<git_reference*>> BranchHeads;
 		std::unordered_map<UUID, uint64_t> CommitsIndexMap;
 
 		~RepoData()

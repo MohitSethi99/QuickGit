@@ -338,6 +338,21 @@ namespace QuickGit
 		out->Description = commitDesc ? commitDesc : "";
 	}
 
+	void ShowRepoBranches(RepoData* repoData)
+	{
+		constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+		if (ImGui::TreeNodeEx("Branches", treeFlags))
+		{
+			for (const auto& [branchRef, branchData] : repoData->Branches)
+			{
+				bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+				if (open)
+					ImGui::TreePop();
+			}
+			ImGui::TreePop();
+		}
+	}
+
 	void ShowRepoWindow(RepoData* repoData, bool* opened)
 	{
 		constexpr ImGuiTableColumnFlags columnFlags = ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_NoHeaderLabel;
@@ -383,21 +398,11 @@ namespace QuickGit
 					ImGui::Text("%u", repoData->UncommittedFiles);
 					ImGui::Text("%u", repoData->Branches.size());
 					ImGui::Text("%u", repoData->Commits.size());
-					bool headFound = false;
-					if (repoData->BranchHeads.find(repoData->Head) != repoData->BranchHeads.end())
+					if (repoData->HeadBranch)
 					{
-						const auto& branches = repoData->BranchHeads.at(repoData->Head);
-						for (auto& branch : branches)
-						{
-							if (branch.Branch == repoData->HeadBranch)
-							{
-								ImGui::TextUnformatted(branch.ShortName());
-								headFound = true;
-								break;
-							}
-						}
+						ImGui::TextUnformatted(repoData->Branches.at(repoData->HeadBranch).ShortName());
 					}
-					if (!headFound)
+					else
 					{
 						uint64_t commitIndex = repoData->CommitsIndexMap.at(repoData->Head);
 						ImGui::Text("%s (Detached)", repoData->Commits.at(commitIndex).CommitID);
@@ -414,17 +419,7 @@ namespace QuickGit
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 
-				constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
-				if (ImGui::TreeNodeEx("Branches", treeFlags))
-				{
-					for (const auto& [branchRef, branchData] : repoData->Branches)
-					{
-						bool open = ImGui::TreeNodeEx(branchData.Name.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf);
-						if (open)
-							ImGui::TreePop();
-					}
-					ImGui::TreePop();
-				}
+				ShowRepoBranches(repoData);
 
 				ImGui::TableNextColumn();
 
@@ -436,8 +431,6 @@ namespace QuickGit
 
 				static ImGuiTextFilter filter;
 				filter.Draw();
-
-
 
 				constexpr ImGuiTableFlags tableFlags =
 					ImGuiTableFlags_PadOuterX |
@@ -480,19 +473,20 @@ namespace QuickGit
 
 						if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
 							g_SelectedCommit = data;
-						
+
 						++row;
 
 						ImGui::TableNextRow();
 						ImGui::TableNextColumn();
-						
+
 						if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 						{
-							std::vector<BranchData>& branches = repoData->BranchHeads.at(data->ID);
-							for (BranchData& branch : branches)
+							std::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
+							for (git_reference* branch : branchHeads)
 							{
-								const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
-								const char* branchName = branch.ShortName();
+								BranchData& branchData = repoData->Branches.at(branch);
+								const bool isHeadBranch = branchData.Branch == repoData->HeadBranch;
+								const char* branchName = branchData.ShortName();
 								ImVec2 size = ImGui::CalcTextSize(branchName);
 								if (isHeadBranch)
 									size.x += lineHeightWithSpacing;
@@ -501,7 +495,7 @@ namespace QuickGit
 								size.y += style.FramePadding.y * 0.75f;
 								rectMin.x -= style.FramePadding.x * 0.5f;
 								rectMin.y -= style.FramePadding.y * 0.5f;
-								ImGui::RenderFrame(rectMin, rectMin + size, branch.Color, true, 2.0f);
+								ImGui::RenderFrame(rectMin, rectMin + size, branchData.Color, true, 2.0f);
 								if (isHeadBranch)
 								{
 									ImGui::PushFont(g_BoldFont);
@@ -515,7 +509,7 @@ namespace QuickGit
 								ImGui::SameLine(0, lineHeightWithSpacing);
 							}
 						}
-						
+
 						const bool isHead = data->ID == repoData->Head;
 						if (!g_SelectedCommit && isHead)
 							g_SelectedCommit = data;
@@ -527,8 +521,8 @@ namespace QuickGit
 						if (isHead)	ImGui::PushFont(g_BoldFont);
 						if (selected) ImGui::PushStyleColor(ImGuiCol_Text, { 0.9f, 0.9f, 0.9f, 1.0f });
 						ImGui::BeginDisabled(disabled);
-						
-						ImGuiExt::TextEllipsis(data->Message, {885, 0});
+
+						ImGuiExt::TextEllipsis(data->Message, { 885, 0 });
 						ImGui::TableNextColumn();
 						ImGui::TextUnformatted(data->AuthorName);
 						ImGui::TableNextColumn();
@@ -550,13 +544,14 @@ namespace QuickGit
 							{
 								if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 								{
-									std::vector<BranchData>& branches = repoData->BranchHeads.at(data->ID);
-									for (BranchData& branch : branches)
+									std::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
+									for (git_reference* branch : branchHeads)
 									{
-										if (ImGui::MenuItem(branch.ShortName()))
+										BranchData& branchData = repoData->Branches.at(branch);
+										if (ImGui::MenuItem("Checkout"))
 										{
 											action = Action::CheckoutBranch;
-											if (!Client::CheckoutBranch(branch.Branch))
+											if (!Client::CheckoutBranch(branchData.Branch))
 												error = git_error_last()->message;
 										}
 									}

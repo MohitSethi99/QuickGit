@@ -391,7 +391,7 @@ namespace QuickGit
 						{
 							if (branch.Branch == repoData->HeadBranch)
 							{
-								ImGui::TextUnformatted(repoData->Branches.at(branch.Branch).Name.c_str());
+								ImGui::TextUnformatted(branch.ShortName());
 								headFound = true;
 								break;
 							}
@@ -430,7 +430,7 @@ namespace QuickGit
 
 				ImGui::Indent();
 				if (repoData->HeadBranch)
-					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).Name.c_str());
+					ImGui::Text("%s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(repoData->HeadBranch).ShortName());
 				else
 					ImGui::TextUnformatted("Detached HEAD");
 
@@ -492,7 +492,7 @@ namespace QuickGit
 							for (BranchData& branch : branches)
 							{
 								const bool isHeadBranch = branch.Branch == repoData->HeadBranch;
-								const char* branchName = repoData->Branches.at(branch.Branch).Name.c_str();
+								const char* branchName = branch.ShortName();
 								ImVec2 size = ImGui::CalcTextSize(branchName);
 								if (isHeadBranch)
 									size.x += lineHeightWithSpacing;
@@ -553,7 +553,7 @@ namespace QuickGit
 									std::vector<BranchData>& branches = repoData->BranchHeads.at(data->ID);
 									for (BranchData& branch : branches)
 									{
-										if (ImGui::MenuItem(repoData->Branches.at(branch.Branch).Name.c_str()))
+										if (ImGui::MenuItem(branch.ShortName()))
 										{
 											action = Action::CheckoutBranch;
 											if (!Client::CheckoutBranch(branch.Branch))
@@ -570,7 +570,7 @@ namespace QuickGit
 								if (repoData->HeadBranch && !isHead)
 								{
 									char resetString[512];
-									snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).Name.c_str());
+									snprintf(resetString, 512, "Reset \"%s\" to here...", repoData->Branches.at(repoData->HeadBranch).ShortName());
 									ImGui::Separator();
 									if (ImGui::BeginMenu(resetString))
 									{

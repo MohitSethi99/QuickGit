@@ -33,6 +33,12 @@ namespace QuickGit
 		uint32_t Color;
 
 		git_reference* Branch = nullptr;
+
+		const char* ShortName() const
+		{
+			const size_t startOffset = (Type == BranchType::Remote ? sizeof("refs/remotes/") : sizeof("refs/heads/")) - 1;
+			return Name.c_str() + startOffset;
+		}
 	};
 
 	struct RepoData

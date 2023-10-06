@@ -10,3 +10,5 @@
 #include <set>
 #include <unordered_set>
 #include <filesystem>
+
+#include <git2.h>

@@ -10,6 +10,9 @@
 #define COMMIT_NAME_LEN 40
 #define COMMIT_DATE_LEN 24
 
+#define LOCAL_BRANCH_PREFIX "refs/heads/"
+#define REMOTE_BRANCH_PREFIX "refs/remotes/"
+
 namespace QuickGit
 {
 	struct CommitData
@@ -32,11 +35,9 @@ namespace QuickGit
 		BranchType Type;
 		uint32_t Color;
 
-		git_reference* Branch = nullptr;
-
 		const char* ShortName() const
 		{
-			const size_t startOffset = (Type == BranchType::Remote ? sizeof("refs/remotes/") : sizeof("refs/heads/")) - 1;
+			const size_t startOffset = (Type == BranchType::Remote ? sizeof(REMOTE_BRANCH_PREFIX) : sizeof(LOCAL_BRANCH_PREFIX)) - 1;
 			return Name.c_str() + startOffset;
 		}
 	};
@@ -90,11 +91,12 @@ namespace QuickGit
 		static void Fill(RepoData* data, git_repository* repo);
 		static bool GenerateDiff(git_commit* commit, std::vector<Diff>& out);
 
-		static git_reference* CreateBranch(const char* branchName, git_commit* commit);
+		static git_reference* CreateBranch(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
+		static bool RenameBranch(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);
+		static bool DeleteBranch(RepoData* repo, git_reference* branch);
 		static bool CheckoutBranch(git_reference* branch, bool force = false);
+		static bool ResetBranch(RepoData* repo, git_commit* commit, git_reset_t resetType);
 		static bool CheckoutCommit(git_commit* commit, bool force = false);
-		static bool Reset(git_commit* commit, git_reset_t resetType);
 		static bool CreatePatch(git_commit* commit, std::string& out);
-		static bool RenameBranch(git_reference* branch, const char* name);
 	};
 }

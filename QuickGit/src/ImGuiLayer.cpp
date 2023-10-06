@@ -285,6 +285,7 @@ namespace QuickGit
 	{
 		git_commit* CommitPtr = nullptr;
 		char CommitID[COMMIT_ID_LEN];
+		UUID ID;
 
 		std::string AuthorName;
 		std::string AuthorEmail;
@@ -306,6 +307,7 @@ namespace QuickGit
 
 		const git_oid* oid = git_commit_id(commit);
 		strncpy_s(out->CommitID, git_oid_tostr_s(oid), COMMIT_ID_LEN);
+		out->ID = Utils::GenUUID(commit);
 
 		const git_signature* author = git_commit_author(commit);
 		const git_signature* committer = git_commit_committer(commit);
@@ -341,14 +343,34 @@ namespace QuickGit
 	void ShowRepoBranches(RepoData* repoData)
 	{
 		constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
+		
 		if (ImGui::TreeNodeEx("Branches", treeFlags))
 		{
 			for (const auto& [branchRef, branchData] : repoData->Branches)
 			{
-				bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
-				if (open)
-					ImGui::TreePop();
+				if (branchData.Type == BranchType::Local)
+				{
+					bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+					if (open)
+						ImGui::TreePop();
+				}
 			}
+
+			ImGui::TreePop();
+		}
+
+		if (ImGui::TreeNodeEx("Remotes", treeFlags))
+		{
+			for (const auto& [branchRef, branchData] : repoData->Branches)
+			{
+				if (branchData.Type == BranchType::Remote)
+				{
+					bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+					if (open)
+						ImGui::TreePop();
+				}
+			}
+
 			ImGui::TreePop();
 		}
 	}
@@ -363,16 +385,14 @@ namespace QuickGit
 			enum class Action
 			{
 				None = 0,
-				CreateBranch,
-				CheckoutBranch,
-				RenameBranch,
-				CheckoutCommit,
-				Reset
+				BranchCreate,
+				BranchCheckout,
+				BranchRename,
+				BranchReset,
+				CommitCheckout,
 			};
 
 			Action action = Action::None;
-			bool branchCreated = false;
-			bool branchRenamed = false;
 			static git_reference* selectedBranch = nullptr;
 
 			ImGui::Begin(repoData->Name.c_str(), opened);
@@ -487,8 +507,8 @@ namespace QuickGit
 							std::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
 							for (git_reference* branch : branchHeads)
 							{
+								const bool isHeadBranch = branch == repoData->HeadBranch;
 								BranchData& branchData = repoData->Branches.at(branch);
-								const bool isHeadBranch = branchData.Branch == repoData->HeadBranch;
 								const char* branchName = branchData.ShortName();
 								ImVec2 size = ImGui::CalcTextSize(branchName);
 								if (isHeadBranch)
@@ -557,16 +577,23 @@ namespace QuickGit
 											{
 												if (ImGui::MenuItem("Checkout"))
 												{
-													action = Action::CheckoutBranch;
-													if (!Client::CheckoutBranch(branchData.Branch))
+													action = Action::BranchCheckout;
+													if (!Client::CheckoutBranch(branch))
 														error = git_error_last()->message;
 												}
 												ImGui::Separator();
 												if (ImGui::MenuItem("Rename"))
 												{
-													action = Action::RenameBranch;
-													selectedBranch = branchData.Branch;
+													action = Action::BranchRename;
+													selectedBranch = branch;
 												}
+												ImGui::BeginDisabled(repoData->HeadBranch == branch);
+												if (ImGui::MenuItem("Delete"))
+												{
+													if (!Client::DeleteBranch(repoData, branch))
+														error = git_error_last()->message;
+												}
+												ImGui::EndDisabled();
 											}
 											if (ImGui::MenuItem("Copy Branch Name"))
 											{
@@ -580,7 +607,7 @@ namespace QuickGit
 								}
 								if (ImGui::MenuItem("New Branch"))
 								{
-									action = Action::CreateBranch;
+									action = Action::BranchCreate;
 								}
 
 								if (repoData->HeadBranch && !isHead)
@@ -592,24 +619,24 @@ namespace QuickGit
 									{
 										if (ImGui::MenuItem("Soft (Move the head to the given commit)"))
 										{
-											if (!Client::Reset(data->Commit, GIT_RESET_SOFT))
+											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_SOFT))
 												error = git_error_last()->message;
 
-											action = Action::Reset;
+											action = Action::BranchReset;
 										}
 										if (ImGui::MenuItem("Mixed (Soft + reset index to the commit)"))
 										{
-											if (!Client::Reset(data->Commit, GIT_RESET_MIXED))
+											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_MIXED))
 												error = git_error_last()->message;
 
-											action = Action::Reset;
+											action = Action::BranchReset;
 										}
 										if (ImGui::MenuItem("Hard (Mixed + changes in working tree discarded)"))
 										{
-											if (!Client::Reset(data->Commit, GIT_RESET_HARD))
+											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_HARD))
 												error = git_error_last()->message;
 
-											action = Action::Reset;
+											action = Action::BranchReset;
 										}
 
 										ImGui::EndMenu();
@@ -619,7 +646,7 @@ namespace QuickGit
 								ImGui::Separator();
 								if (ImGui::MenuItem("Checkout Commit"))
 								{
-									action = Action::CheckoutCommit;
+									action = Action::CommitCheckout;
 								}
 								if (ImGui::MenuItem("Copy as Patch"))
 								{
@@ -666,23 +693,28 @@ namespace QuickGit
 
 				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
 
+				char invalidNameError[] = "Branch name is invalid!";
 				if (g_SelectedCommit)
 				{
-					if (action == Action::CreateBranch)
+					if (action == Action::BranchCreate)
 					{
 						ImGui::OpenPopup("Create Branch");
 					}
-					if (action == Action::RenameBranch)
+					if (action == Action::BranchRename)
 					{
 						ImGui::OpenPopup("Rename Branch");
 					}
-					if (action == Action::CheckoutBranch)
+					if (action == Action::BranchCheckout)
 					{
 						Client::UpdateHead(*repoData);
 					}
-					if (action == Action::CheckoutCommit)
+					if (action == Action::CommitCheckout)
 					{
 						ImGui::OpenPopup("Checkout Commit");
+					}
+					if (action == Action::BranchReset)
+					{
+						//Client::UpdateHead(*repoData);
 					}
 
 					if (ImGuiExt::BeginPopupModal("Create Branch"))
@@ -725,14 +757,18 @@ namespace QuickGit
 
 							if (ImGui::Button("Create"))
 							{
-								git_reference* branch = Client::CreateBranch(branchName, g_SelectedCommit->Commit);
-								branchCreated = branch;
+								bool validName = false;
+								git_reference* branch = Client::CreateBranch(repoData, branchName, g_SelectedCommit->Commit, validName);
 								bool success = branch;
 								if (branch && checkoutAfterCreate)
 									success = Client::CheckoutBranch(branch);
 
-								if (!success)
+								if (!validName)
+									error = invalidNameError;
+								else if (!success)
 									error = git_error_last()->message;
+
+								Client::UpdateHead(*repoData);
 
 								memset(branchName, 0, 256);
 								ImGui::CloseCurrentPopup();
@@ -766,10 +802,14 @@ namespace QuickGit
 						ImGui::BeginDisabled(branchName[0] == '\0');
 						if (ImGui::Button("Rename"))
 						{
-							if (Client::RenameBranch(selectedBranch, branchName))
-								branchRenamed = true;
-							else
-								error = git_error_last()->message;
+							bool validName = false;
+							if (!Client::RenameBranch(repoData, selectedBranch, branchName, validName))
+							{
+								if (validName)
+									error = git_error_last()->message;
+								else
+									error = invalidNameError;
+							}
 
 							selectedBranch = nullptr;
 							memset(branchName, 0, 256);
@@ -859,9 +899,6 @@ namespace QuickGit
 			}
 
 			ImGui::End();
-
-			if (branchCreated || branchRenamed || action == Action::Reset)
-				Client::Fill(repoData, repoData->Repository);
 		}
 	}
 
@@ -954,6 +991,7 @@ namespace QuickGit
 
 			ImGui::Spacing();
 			ImGui::Text("SHA %s", cd.CommitID);
+			ImGui::Text("Internal ID %llu", cd.ID);
 			ImGui::Spacing();
 
 			ImGui::Separator();

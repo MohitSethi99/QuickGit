@@ -56,8 +56,7 @@ namespace QuickGit
 	{
 		git_reference* ref;
 		git_repository_head(&ref, repoData.Repository);
-		const git_oid* id = git_reference_target(ref);
-		repoData.Head = Utils::GenUUID(git_oid_tostr_s(id));
+		repoData.Head = Utils::GenUUID(ref);
 		git_reference_free(ref);
 
 		repoData.HeadBranch = nullptr;
@@ -122,14 +121,12 @@ namespace QuickGit
 				git_commit_lookup(&targetCommit, repo, git_reference_target(ref));
 				if (data->Branches.find(ref) == data->Branches.end())
 				{
-					const git_oid* targetId = git_commit_id(targetCommit);
 					BranchData branchData;
 					branchData.Name = refName;
 					branchData.Type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
 					branchData.Color = Utils::GenerateColor(refName);
-					branchData.Branch = ref;
 					data->Branches[ref] = std::move(branchData);
-					data->BranchHeads[Utils::GenUUID(git_oid_tostr_s(targetId))].push_back(ref);
+					data->BranchHeads[Utils::GenUUID(targetCommit)].push_back(ref);
 				}
 
 				git_revwalk* walker;
@@ -196,14 +193,103 @@ namespace QuickGit
 		UpdateHead(*data);
 	}
 
-	git_reference* Client::CreateBranch(const char* branchName, git_commit* commit)
+	git_reference* Client::CreateBranch(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName)
 	{
 		Stopwatch sw("CreateBranch");
 
-		git_repository*	repo = git_commit_owner(commit);
-		git_reference* outBranch = nullptr;
-		git_branch_create(&outBranch, repo, branchName, commit, 0);
-		return outBranch;
+		int valid = 0;
+		int err = git_branch_name_is_valid(&valid, branchName);
+		outValidName = valid;
+
+		if (err == 0 && outValidName)
+		{
+			git_reference* outBranch = nullptr;
+			err = git_branch_create(&outBranch, repo->Repository, branchName, commit, 0);
+
+			if (outBranch)
+			{
+				UUID id = Utils::GenUUID(commit);
+				BranchData branchData;
+				branchData.Type = BranchType::Local;
+				branchData.Name = LOCAL_BRANCH_PREFIX + std::string(branchName);
+				branchData.Color = Utils::GenerateColor(branchData.Name.c_str());
+				repo->Branches[outBranch] = std::move(branchData);
+				repo->BranchHeads[id].push_back(outBranch);
+			}
+
+			return outBranch;
+		}
+
+		return nullptr;
+	}
+
+	bool Client::RenameBranch(RepoData* repo, git_reference* branch, const char* name, bool& outValidName)
+	{
+		int valid = 0;
+		int err = git_branch_name_is_valid(&valid, name);
+
+		outValidName = valid;
+		git_reference* newRef = nullptr;
+		std::string newName = LOCAL_BRANCH_PREFIX + std::string(name);
+		UUID oldId = Utils::GenUUID(branch);
+		if (err == 0 && outValidName)
+		{
+			err = git_reference_rename(&newRef, branch, newName.c_str(), 0, nullptr);
+		}
+
+		if (err == 0 && outValidName && newRef)
+		{
+			if (repo->HeadBranch == branch)
+			{
+				repo->HeadBranch = newRef;
+			}
+
+			repo->Branches[newRef] = repo->Branches.at(branch);
+			BranchData& data = repo->Branches.at(newRef);
+			data.Name = newName;
+			data.Color = Utils::GenerateColor(data.Name.c_str());
+			repo->Branches.erase(branch);
+
+			auto& branchHeads = repo->BranchHeads.at(oldId);
+			for (auto it = branchHeads.begin(); it != branchHeads.end(); ++it)
+			{
+				if (*it == branch)
+				{
+					branchHeads.erase(it);
+					break;
+				}
+			}
+			branchHeads.push_back(newRef);
+
+			git_reference_free(branch);
+		}
+
+		return err == 0 && outValidName;
+	}
+
+	bool Client::DeleteBranch(RepoData* repo, git_reference* branch)
+	{
+		int err = git_reference_delete(branch);
+
+		if (err == 0)
+		{
+			UUID id = Utils::GenUUID(branch);
+			repo->Branches.erase(branch);
+
+			auto& branchHeads = repo->BranchHeads.at(id);
+			for (auto it = branchHeads.begin(); it != branchHeads.end(); ++it)
+			{
+				if (*it == branch)
+				{
+					branchHeads.erase(it);
+					break;
+				}
+			}
+
+			git_reference_free(branch);
+		}
+
+		return err == 0;
 	}
 
 	bool Client::CheckoutBranch(git_reference* branch, bool force /*= false*/)
@@ -223,13 +309,50 @@ namespace QuickGit
 				err = git_branch_name(&branchName, branch);
 				if (err == 0)
 				{
-					char branchNameFull[2048];
-					snprintf(branchNameFull, 2048, "refs/heads/%s", branchName);
-					err = git_repository_set_head(repo, branchNameFull);
+					std::string branchNameFull = LOCAL_BRANCH_PREFIX + std::string(branchName);
+					err = git_repository_set_head(repo, branchNameFull.c_str());
 				}
 			}
+			git_commit_free(commit);
 		}
 
+		return err == 0;
+	}
+
+	bool Client::ResetBranch(RepoData* repo, git_commit* commit, git_reset_t resetType)
+	{
+		Stopwatch sw("Reset");
+
+		const int err = git_reset(repo->Repository, reinterpret_cast<const git_object*>(commit), resetType, resetType == GIT_RESET_HARD ? &s_ForceCheckoutOptions : &s_SafeCheckoutOptions);
+		git_reference* newHead;
+		git_repository_head(&newHead, repo->Repository);
+
+		if (err == 0)
+		{
+			git_reference* oldHead = repo->HeadBranch;
+			repo->Branches[newHead] = repo->Branches.at(oldHead);
+			repo->Branches.erase(oldHead);
+			auto& branchHeads = repo->BranchHeads.at(repo->Head);
+			if (branchHeads.size() == 1)
+			{
+				repo->BranchHeads.erase(repo->Head);
+			}
+			else
+			{
+				for (auto it = branchHeads.begin(); it != branchHeads.end(); ++it)
+				{
+					if (*it == oldHead)
+					{
+						branchHeads.erase(it);
+						break;
+					}
+				}
+			}
+
+			repo->HeadBranch = newHead;
+			repo->Head = Utils::GenUUID(newHead);
+			repo->BranchHeads[repo->Head].push_back(newHead);
+		}
 		return err == 0;
 	}
 
@@ -241,15 +364,6 @@ namespace QuickGit
 		int err = git_checkout_tree(repo, reinterpret_cast<git_object*>(commit), force ? &s_ForceCheckoutOptions : &s_SafeCheckoutOptions);
 		if (err == 0)
 			err = git_repository_set_head_detached(repo, git_commit_id(commit));
-		return err == 0;
-	}
-
-	bool Client::Reset(git_commit* commit, git_reset_t resetType)
-	{
-		Stopwatch sw("Reset");
-		
-		git_repository* repo = git_commit_owner(commit);
-		const int err = git_reset(repo, reinterpret_cast<const git_object*>(commit), resetType, resetType == GIT_RESET_HARD ? &s_ForceCheckoutOptions : &s_SafeCheckoutOptions);
 		return err == 0;
 	}
 
@@ -330,17 +444,6 @@ namespace QuickGit
 			git_buf_free(&buf);
 		}
 
-		return err == 0;
-	}
-
-	bool Client::RenameBranch(git_reference* branch, const char* name)
-	{
-		char buf[512];
-		snprintf(buf, 512, "refs/heads/%s", name);
-		git_reference* newRef;
-		int err = git_reference_rename(&newRef, branch, buf, 0, nullptr);
-		if (err == 0 && newRef)
-			git_reference_free(newRef);
 		return err == 0;
 	}
 }

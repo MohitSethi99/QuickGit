@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "Utils.h"
 
+#include <git2.h>
+
 namespace QuickGit
 {
 	UUID Utils::GenUUID(const char* str)
@@ -9,6 +11,23 @@ namespace QuickGit
 		while (*str)
 			hash = (hash << 5) + *str++;
 		return hash;
+	}
+
+	UUID Utils::GenUUID(const git_commit* commit)
+	{
+		const git_oid* oid = git_commit_id(commit);
+		return GenUUID(oid);
+	}
+
+	UUID Utils::GenUUID(const git_oid* commitId)
+	{
+		return GenUUID(git_oid_tostr_s(commitId));
+	}
+
+	UUID Utils::GenUUID(const git_reference* ref)
+	{
+		const git_oid* oid = git_reference_target(ref);
+		return GenUUID(oid);
 	}
 
 	uint32_t Utils::GenerateColor(const char* str)

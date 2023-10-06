@@ -7,6 +7,40 @@ namespace QuickGit
 {
 	extern ImFont* g_HeadingFont;
 
+	void ImGuiExt::FramedText(const ImVec2& frameSize, uint32_t frameColor, bool frameBorder, float frameRounding, const char* fmt, ...)
+	{
+		auto& style = ImGui::GetStyle();
+		ImVec2 size = frameSize;
+		if (size.x == 0 || size.y == 0)
+			size = ImGui::CalcTextSize(fmt);
+
+		ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
+		size.x += style.FramePadding.x;
+		size.y += style.FramePadding.y * 0.75f;
+		rectMin.x -= style.FramePadding.x * 0.5f;
+		rectMin.y -= style.FramePadding.y * 0.5f;
+		ImGui::RenderFrame(rectMin, rectMin + size, frameColor, frameBorder, frameRounding);
+		va_list args;
+		va_start(args, fmt);
+		ImGui::TextV(fmt, args);
+		va_end(args);
+	}
+
+	void ImGuiExt::FramedTextUnformatted(const ImVec2& frameSize, uint32_t frameColor, bool frameBorder, float frameRounding, const char* text, const char* textEnd /*= nullptr*/)
+	{
+		auto& style = ImGui::GetStyle();
+		ImVec2 size = frameSize;
+		if (size.x == 0 || size.y == 0)
+			size = ImGui::CalcTextSize(text, textEnd, true);
+		ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
+		size.x += style.FramePadding.x;
+		size.y += style.FramePadding.y * 0.75f;
+		rectMin.x -= style.FramePadding.x * 0.5f;
+		rectMin.y -= style.FramePadding.y * 0.5f;
+		ImGui::RenderFrame(rectMin, rectMin + size, frameColor, frameBorder, frameRounding);
+		ImGui::TextUnformatted(text, textEnd);
+	}
+
 	void ImGuiExt::HeadingTextUnformatted(const char* text, const char* textEnd /* = nullptr*/)
 	{
 		ImGui::PushFont(g_HeadingFont);

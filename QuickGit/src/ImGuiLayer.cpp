@@ -299,6 +299,8 @@ namespace QuickGit
 
 		std::string Message;
 		std::string Description;
+
+		std::vector<std::string> Refs;
 	};
 
 	void GetCommit(git_commit* commit, Commit* out)
@@ -338,6 +340,21 @@ namespace QuickGit
 
 		out->Message = commitSummary ? commitSummary : "";
 		out->Description = commitDesc ? commitDesc : "";
+
+		out->Refs.clear();
+		git_reference_iterator* iter;
+		git_reference* ref;
+		git_reference_iterator_new(&iter, git_commit_owner(commit));
+		while (!git_reference_next(&ref, iter))
+		{
+			const git_oid* refOid = git_reference_target(ref);
+			if (refOid && git_oid_equal(refOid, oid))
+			{
+				const char* name = git_reference_name(ref) + (git_reference_is_remote(ref) == 1 ? sizeof(REMOTE_BRANCH_PREFIX) : sizeof(LOCAL_BRANCH_PREFIX)) - 1;
+				out->Refs.emplace_back(name);
+			}
+		}
+		git_reference_iterator_free(iter);
 	}
 
 	void ShowRepoBranches(RepoData* repoData)
@@ -476,8 +493,6 @@ namespace QuickGit
 
 				if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
 				{
-					ImGuiStyle& style = ImGui::GetStyle();
-
 					ImGui::TableSetupColumn("Message", columnFlags);
 					ImGui::TableSetupColumn("AuthorName", columnFlags | ImGuiTableColumnFlags_WidthFixed);
 					ImGui::TableSetupColumn("CommitID", columnFlags | ImGuiTableColumnFlags_WidthFixed);
@@ -510,24 +525,17 @@ namespace QuickGit
 								const bool isHeadBranch = branch == repoData->HeadBranch;
 								BranchData& branchData = repoData->Branches.at(branch);
 								const char* branchName = branchData.ShortName();
-								ImVec2 size = ImGui::CalcTextSize(branchName);
-								if (isHeadBranch)
-									size.x += lineHeightWithSpacing;
-								ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
-								size.x += style.FramePadding.x;
-								size.y += style.FramePadding.y * 0.75f;
-								rectMin.x -= style.FramePadding.x * 0.5f;
-								rectMin.y -= style.FramePadding.y * 0.5f;
-								ImGui::RenderFrame(rectMin, rectMin + size, branchData.Color, true, 2.0f);
 								if (isHeadBranch)
 								{
 									ImGui::PushFont(g_BoldFont);
-									ImGui::Text("%s%s", ICON_MDI_CHECK_ALL, branchName);
+									ImVec2 size = ImGui::CalcTextSize(branchName);
+									size.x += lineHeightWithSpacing;
+									ImGuiExt::FramedText(size, branchData.Color, true, 2.0f, "%s%s", ICON_MDI_CHECK_ALL, branchName);
 									ImGui::PopFont();
 								}
 								else
 								{
-									ImGui::TextUnformatted(branchName);
+									ImGuiExt::FramedTextUnformatted({ 0, 0 }, branchData.Color, true, 2.0f, branchName);
 								}
 								ImGui::SameLine(0, lineHeightWithSpacing);
 							}
@@ -578,7 +586,7 @@ namespace QuickGit
 												if (ImGui::MenuItem("Checkout"))
 												{
 													action = Action::BranchCheckout;
-													if (!Client::CheckoutBranch(branch))
+													if (!Client::BranchCheckout(branch))
 														error = git_error_last()->message;
 												}
 												ImGui::Separator();
@@ -590,7 +598,7 @@ namespace QuickGit
 												ImGui::BeginDisabled(repoData->HeadBranch == branch);
 												if (ImGui::MenuItem("Delete"))
 												{
-													if (!Client::DeleteBranch(repoData, branch))
+													if (!Client::BranchDelete(repoData, branch))
 														error = git_error_last()->message;
 												}
 												ImGui::EndDisabled();
@@ -619,21 +627,21 @@ namespace QuickGit
 									{
 										if (ImGui::MenuItem("Soft (Move the head to the given commit)"))
 										{
-											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_SOFT))
+											if (!Client::BranchReset(repoData, data->Commit, GIT_RESET_SOFT))
 												error = git_error_last()->message;
 
 											action = Action::BranchReset;
 										}
 										if (ImGui::MenuItem("Mixed (Soft + reset index to the commit)"))
 										{
-											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_MIXED))
+											if (!Client::BranchReset(repoData, data->Commit, GIT_RESET_MIXED))
 												error = git_error_last()->message;
 
 											action = Action::BranchReset;
 										}
 										if (ImGui::MenuItem("Hard (Mixed + changes in working tree discarded)"))
 										{
-											if (!Client::ResetBranch(repoData, data->Commit, GIT_RESET_HARD))
+											if (!Client::BranchReset(repoData, data->Commit, GIT_RESET_HARD))
 												error = git_error_last()->message;
 
 											action = Action::BranchReset;
@@ -758,10 +766,10 @@ namespace QuickGit
 							if (ImGui::Button("Create"))
 							{
 								bool validName = false;
-								git_reference* branch = Client::CreateBranch(repoData, branchName, g_SelectedCommit->Commit, validName);
+								git_reference* branch = Client::BranchCreate(repoData, branchName, g_SelectedCommit->Commit, validName);
 								bool success = branch;
 								if (branch && checkoutAfterCreate)
-									success = Client::CheckoutBranch(branch);
+									success = Client::BranchCheckout(branch);
 
 								if (!validName)
 									error = invalidNameError;
@@ -803,7 +811,7 @@ namespace QuickGit
 						if (ImGui::Button("Rename"))
 						{
 							bool validName = false;
-							if (!Client::RenameBranch(repoData, selectedBranch, branchName, validName))
+							if (!Client::BranchRename(repoData, selectedBranch, branchName, validName))
 							{
 								if (validName)
 									error = git_error_last()->message;
@@ -844,7 +852,7 @@ namespace QuickGit
 
 						if (ImGui::Button("Checkout Commit"))
 						{
-							if (!Client::CheckoutCommit(g_SelectedCommit->Commit, false))
+							if (!Client::CommitCheckout(g_SelectedCommit->Commit, false))
 								error = git_error_last()->message;
 
 							Client::UpdateHead(*repoData);
@@ -943,6 +951,8 @@ namespace QuickGit
 
 
 
+		float frameHeightWithSpacing = ImGui::GetFrameHeightWithSpacing();
+
 		ImGui::Begin("Commit");
 		ImGui::Indent();
 		static Commit cd;
@@ -990,13 +1000,35 @@ namespace QuickGit
 			}
 
 			ImGui::Spacing();
-			ImGui::Text("SHA %s", cd.CommitID);
-			ImGui::Text("Internal ID %llu", cd.ID);
-			ImGui::Spacing();
 
+			if (ImGui::BeginTable("CommitMidTable", 2, ImGuiTableFlags_SizingFixedFit))
+			{
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+
+				if (!cd.Refs.empty())
+					ImGui::TextUnformatted("REFS");
+				ImGui::TextUnformatted("SHA");
+				ImGui::TextUnformatted("Internal ID");
+
+				ImGui::TableNextColumn();
+
+				for (size_t i = 0, sz = cd.Refs.size(); i < sz; ++i)
+				{
+					ImGuiExt::FramedTextUnformatted({0, 0}, ImGui::GetColorU32(ImGuiCol_FrameBg), true, 2.0f, cd.Refs[i].c_str());
+					if (i < sz - 1)
+						ImGui::SameLine(0, ImGui::GetTextLineHeight());
+				}
+				ImGui::TextUnformatted(cd.CommitID);
+				ImGui::Text("%llu", cd.ID);
+
+				ImGui::EndTable();
+			}
+			
+			ImGui::Spacing();
 			ImGui::Separator();
-
 			ImGui::Spacing();
+			
 			ImGui::PushFont(g_HeadingFont);
 			ImGui::TextWrapped(cd.Message.c_str());
 			ImGui::PopFont();
@@ -1016,26 +1048,25 @@ namespace QuickGit
 				ImGui::PopStyleColor();
 				if (open)
 				{
-					float frameHeight = ImGui::GetFrameHeightWithSpacing();
-					ImGui::Indent(frameHeight);
+					ImGui::Indent(frameHeightWithSpacing);
 					if (diff.Patch == "@@BinaryData")
 					{
 						ImGui::TextUnformatted(diff.Patch.c_str());
 						if (diff.NewFileSize)
 						{
-							ImGui::Indent(frameHeight);
+							ImGui::Indent(frameHeightWithSpacing);
 							if (diff.OldFileSize)
 							{
 								ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_DELETED));
 								ImGui::Text("Old: %u Bytes", diff.OldFileSize);
 								ImGui::PopStyleColor();
-								ImGui::SameLine(0, frameHeight);
+								ImGui::SameLine(0, frameHeightWithSpacing);
 							}
 
 							ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_ADDED));
 							ImGui::Text("New: %u Bytes", diff.NewFileSize);
 							ImGui::PopStyleColor();
-							ImGui::Unindent(frameHeight);
+							ImGui::Unindent(frameHeightWithSpacing);
 						}
 					}
 					else
@@ -1045,7 +1076,7 @@ namespace QuickGit
 						ImGui::InputTextMultiline(diff.File.c_str(), &diff.Patch[0], diff.Patch.size(), { ImGui::GetContentRegionAvail().x, size.y }, ImGuiInputTextFlags_ReadOnly);
 					}
 
-					ImGui::Unindent(frameHeight);
+					ImGui::Unindent(frameHeightWithSpacing);
 					ImGui::TreePop();
 				}
 			}

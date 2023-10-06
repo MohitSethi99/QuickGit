@@ -193,7 +193,7 @@ namespace QuickGit
 		UpdateHead(*data);
 	}
 
-	git_reference* Client::CreateBranch(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName)
+	git_reference* Client::BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName)
 	{
 		Stopwatch sw("CreateBranch");
 
@@ -223,7 +223,7 @@ namespace QuickGit
 		return nullptr;
 	}
 
-	bool Client::RenameBranch(RepoData* repo, git_reference* branch, const char* name, bool& outValidName)
+	bool Client::BranchRename(RepoData* repo, git_reference* branch, const char* name, bool& outValidName)
 	{
 		int valid = 0;
 		int err = git_branch_name_is_valid(&valid, name);
@@ -267,7 +267,7 @@ namespace QuickGit
 		return err == 0 && outValidName;
 	}
 
-	bool Client::DeleteBranch(RepoData* repo, git_reference* branch)
+	bool Client::BranchDelete(RepoData* repo, git_reference* branch)
 	{
 		int err = git_reference_delete(branch);
 
@@ -292,7 +292,7 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::CheckoutBranch(git_reference* branch, bool force /*= false*/)
+	bool Client::BranchCheckout(git_reference* branch, bool force /*= false*/)
 	{
 		Stopwatch sw("CheckoutBranch");
 
@@ -319,7 +319,7 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::ResetBranch(RepoData* repo, git_commit* commit, git_reset_t resetType)
+	bool Client::BranchReset(RepoData* repo, git_commit* commit, git_reset_t resetType)
 	{
 		Stopwatch sw("Reset");
 
@@ -356,7 +356,7 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::CheckoutCommit(git_commit* commit, bool force)
+	bool Client::CommitCheckout(git_commit* commit, bool force)
 	{
 		Stopwatch sw("CheckoutCommit");
 

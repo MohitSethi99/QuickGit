@@ -91,12 +91,12 @@ namespace QuickGit
 		static void Fill(RepoData* data, git_repository* repo);
 		static bool GenerateDiff(git_commit* commit, std::vector<Diff>& out);
 
-		static git_reference* CreateBranch(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
-		static bool RenameBranch(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);
-		static bool DeleteBranch(RepoData* repo, git_reference* branch);
-		static bool CheckoutBranch(git_reference* branch, bool force = false);
-		static bool ResetBranch(RepoData* repo, git_commit* commit, git_reset_t resetType);
-		static bool CheckoutCommit(git_commit* commit, bool force = false);
+		static git_reference* BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
+		static bool BranchRename(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);
+		static bool BranchDelete(RepoData* repo, git_reference* branch);
+		static bool BranchCheckout(git_reference* branch, bool force = false);
+		static bool BranchReset(RepoData* repo, git_commit* commit, git_reset_t resetType);
+		static bool CommitCheckout(git_commit* commit, bool force = false);
 		static bool CreatePatch(git_commit* commit, std::string& out);
 	};
 }

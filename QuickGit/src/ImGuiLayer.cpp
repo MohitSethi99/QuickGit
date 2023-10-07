@@ -284,7 +284,7 @@ namespace QuickGit
 	struct Commit
 	{
 		git_commit* CommitPtr = nullptr;
-		char CommitID[COMMIT_ID_LEN];
+		char CommitID[41];
 		UUID ID;
 
 		std::string AuthorName;
@@ -308,7 +308,7 @@ namespace QuickGit
 		out->CommitPtr = commit;
 
 		const git_oid* oid = git_commit_id(commit);
-		strncpy_s(out->CommitID, git_oid_tostr_s(oid), COMMIT_ID_LEN);
+		strncpy_s(out->CommitID, git_oid_tostr_s(oid), sizeof(out->CommitID) - 1);
 		out->ID = Utils::GenUUID(commit);
 
 		const git_signature* author = git_commit_author(commit);
@@ -557,7 +557,7 @@ namespace QuickGit
 						ImGui::TableNextColumn();
 						ImGui::TextUnformatted(data->AuthorName);
 						ImGui::TableNextColumn();
-						ImGui::TextUnformatted(data->CommitID, data->CommitID + SHORT_SHA_LENGTH);
+						ImGui::TextUnformatted(data->CommitID);
 						ImGui::TableNextColumn();
 						ImGui::TextUnformatted(data->AuthorDate, data->AuthorDate + strlen(data->AuthorDate) - 3);
 
@@ -668,14 +668,15 @@ namespace QuickGit
 								ImGui::Separator();
 								if (ImGui::MenuItem("Copy Commit SHA"))
 								{
-									ImGui::SetClipboardText(g_SelectedCommit->CommitID);
+									const git_oid* oid = git_commit_id(g_SelectedCommit->Commit);
+									ImGui::SetClipboardText(git_oid_tostr_s(oid));
 								}
 								if (ImGui::MenuItem("Copy Commit Info"))
 								{
 									Commit c;
 									GetCommit(g_SelectedCommit->Commit, &c);
 									char shortSHA[8];
-									strncpy_s(shortSHA, c.CommitID, SHORT_SHA_LENGTH);
+									strncpy_s(shortSHA, c.CommitID, COMMIT_SHORT_ID_LEN - 1);
 									std::string info = "SHA: ";
 									info += shortSHA;
 									info += "\nAuthor: ";
@@ -739,7 +740,7 @@ namespace QuickGit
 
 							ImGui::TextUnformatted("Create Branch at:");
 							ImGui::TableNextColumn();
-							ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, g_SelectedCommit->CommitID);
+							ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, g_SelectedCommit->CommitID);
 							ImGui::SameLine();
 							ImGuiExt::TextEllipsis(g_SelectedCommit->Message);
 
@@ -844,7 +845,7 @@ namespace QuickGit
 
 						ImGui::TextUnformatted("Commit to checkout:");
 						ImGui::SameLine();
-						ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, SHORT_SHA_LENGTH, g_SelectedCommit->CommitID);
+						ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, g_SelectedCommit->CommitID);
 						ImGui::SameLine();
 						ImGuiExt::TextEllipsis(g_SelectedCommit->Message);
 

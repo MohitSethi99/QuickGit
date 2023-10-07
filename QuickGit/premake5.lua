@@ -49,6 +49,8 @@ project "QuickGit"
 		"%{IncludeDir.icons}",
 		"%{IncludeDir.magic_enum}",
 		"%{IncludeDir.LibGit2}",
+		"%{IncludeDir.EABase}",
+		"%{IncludeDir.EASTL}",
 	}
 
 	links
@@ -56,6 +58,7 @@ project "QuickGit"
 		"GLFW",
 		"Glad",
 		"ImGui",
+		"EASTL",
 	}
 
 	postbuildcommands

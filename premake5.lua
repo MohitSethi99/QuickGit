@@ -47,11 +47,14 @@ IncludeDir["stb_image"] = "%{wks.location}/QuickGit/vendor/stb_image"
 IncludeDir["icons"] = "%{wks.location}/QuickGit/vendor/icons/include"
 IncludeDir["magic_enum"] = "%{wks.location}/QuickGit/vendor/magic_enum"
 IncludeDir["LibGit2"] = "%{wks.location}/QuickGit/vendor/libgit2/include"
+IncludeDir["EABase"] = "%{wks.location}/QuickGit/vendor/EABase/include/Common"
+IncludeDir["EASTL"] = "%{wks.location}/QuickGit/vendor/EASTL/include"
 
 group "Dependencies"
 	include "QuickGit/vendor/GLFW"
 	include "QuickGit/vendor/Glad"
 	include "QuickGit/vendor/imgui"
+	include "QuickGit/vendor/EASTL"
 
 group ""
 

@@ -1085,6 +1085,29 @@ namespace QuickGit
 		}
 		ImGui::Unindent();
 		ImGui::End();
+
+		if (ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down, frameHeight, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoNavFocus))
+		{
+			if (ImGui::BeginMenuBar())
+			{
+				constexpr float updateTime = 0.1f;
+				static float accum = 0.0f;
+				static float dt = 0.0f;
+				static double mem = 0.0f;
+				if (accum >= 0.0f)
+				{
+					dt = ImGui::GetIO().DeltaTime;
+					mem = static_cast<double>(QuickGit::Allocation::GetSize()) / (1024.0 * 1024.0);
+					accum = -updateTime;
+				}
+
+				accum += dt;
+				ImGui::Text("FPS: %.2lf (%.3lfms)  MEM: %.2lfMB", 1.0f / dt, dt, mem);
+
+				ImGui::EndMenuBar();
+			}
+			ImGui::End();
+		}
 		
 		static bool show_demo_window = true;
 		if (show_demo_window)

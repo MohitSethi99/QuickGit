@@ -2,13 +2,20 @@
 
 #include <stdio.h>
 
-#include <string>
-#include <memory>
-#include <vector>
-#include <map>
-#include <unordered_map>
-#include <set>
-#include <unordered_set>
+#include <EASTL/string.h>
+#include <EASTL/memory.h>
+#include <EASTL/vector.h>
+#include <EASTL/hash_map.h>
+#include <EASTL/map.h>
+#include <EASTL/hash_set.h>
+#include <EASTL/unique_ptr.h>
+#include <EASTL/sort.h>
+
 #include <filesystem>
 
 #include <git2.h>
+
+namespace QuickGit::Allocation
+{
+	size_t GetSize();
+}

@@ -5,7 +5,7 @@
 
 namespace QuickGit
 {
-	static std::vector<std::unique_ptr<RepoData>> s_Repositories;
+	static eastl::vector<eastl::unique_ptr<RepoData>> s_Repositories;
 
 	static git_checkout_options s_SafeCheckoutOptions;
 	static git_checkout_options s_ForceCheckoutOptions;
@@ -31,9 +31,9 @@ namespace QuickGit
 		git_libgit2_shutdown();
 	}
 
-	bool Client::InitRepo(const std::string_view& path)
+	bool Client::InitRepo(const eastl::string_view& path)
 	{
-		if (!std::filesystem::exists(path))
+		if (!std::filesystem::exists(path.data()))
 			return false;
 
 		git_repository* repo = nullptr;
@@ -41,13 +41,13 @@ namespace QuickGit
 		if (error != 0)
 			return false;
 
-		std::unique_ptr<RepoData> data = std::make_unique<RepoData>();
+		eastl::unique_ptr<RepoData> data = eastl::make_unique<RepoData>();
 		Fill(data.get(), repo);
-		s_Repositories.emplace_back(std::move(data));
+		s_Repositories.emplace_back(eastl::move(data));
 		return true;
 	}
 
-	std::vector<std::unique_ptr<RepoData>>& Client::GetRepositories()
+	eastl::vector<eastl::unique_ptr<RepoData>>& Client::GetRepositories()
 	{
 		return s_Repositories;
 	}
@@ -89,7 +89,7 @@ namespace QuickGit
 		data->Repository = repo;
 
 		// Trim the last slash
-		std::string filepath = git_repository_workdir(repo);
+		eastl::string filepath = git_repository_workdir(repo);
 		size_t len = filepath.length();
 		if (filepath[len - 1] == '/')
 			filepath[len - 1] = '\0';
@@ -109,7 +109,7 @@ namespace QuickGit
 		git_reference_iterator* refIt = nullptr;
 		git_reference* ref = nullptr;
 		git_reference_iterator_new(&refIt, repo);
-		std::unordered_set<std::string> uniqueCommits;
+		eastl::hash_set<eastl::string> uniqueCommits;
 		while (git_reference_next(&ref, refIt) == 0)
 		{
 			git_reference_t refType = git_reference_type(ref);
@@ -125,7 +125,7 @@ namespace QuickGit
 					branchData.Name = refName;
 					branchData.Type = git_reference_is_remote(ref) == 1 ? BranchType::Remote : BranchType::Local;
 					branchData.Color = Utils::GenerateColor(refName);
-					data->Branches[ref] = std::move(branchData);
+					data->Branches[ref] = eastl::move(branchData);
 					data->BranchHeads[Utils::GenUUID(targetCommit)].push_back(ref);
 				}
 
@@ -138,8 +138,8 @@ namespace QuickGit
 				git_oid oid;
 				while (git_revwalk_next(&oid, walker) == 0)
 				{
-					std::string idStr = git_oid_tostr_s(&oid);
-					if (uniqueCommits.contains(idStr))
+					eastl::string idStr = git_oid_tostr_s(&oid);
+					if (uniqueCommits.find(idStr) != uniqueCommits.end())
 						continue;
 
 					uniqueCommits.emplace(idStr);
@@ -170,7 +170,7 @@ namespace QuickGit
 						localtime_s(&localTime, &timestamp);
 						strftime(cd.AuthorDate, sizeof(cd.AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
 
-						data->Commits.emplace_back(std::move(cd));
+						data->Commits.emplace_back(eastl::move(cd));
 						data->CommitsIndexMap.emplace(id, data->Commits.size() - 1);
 					}
 				}
@@ -185,7 +185,7 @@ namespace QuickGit
 		}
 		git_reference_iterator_free(refIt);
 
-		std::sort(data->Commits.begin(), data->Commits.end(), [](const CommitData& lhs, const CommitData& rhs)
+		eastl::sort(data->Commits.begin(), data->Commits.end(), [](const CommitData& lhs, const CommitData& rhs)
 		{
 			return lhs.CommitTime > rhs.CommitTime;
 		});
@@ -211,9 +211,9 @@ namespace QuickGit
 				UUID id = Utils::GenUUID(commit);
 				BranchData branchData;
 				branchData.Type = BranchType::Local;
-				branchData.Name = LOCAL_BRANCH_PREFIX + std::string(branchName);
+				branchData.Name = LOCAL_BRANCH_PREFIX + eastl::string(branchName);
 				branchData.Color = Utils::GenerateColor(branchData.Name.c_str());
-				repo->Branches[outBranch] = std::move(branchData);
+				repo->Branches[outBranch] = eastl::move(branchData);
 				repo->BranchHeads[id].push_back(outBranch);
 			}
 
@@ -230,7 +230,7 @@ namespace QuickGit
 
 		outValidName = valid;
 		git_reference* newRef = nullptr;
-		std::string newName = LOCAL_BRANCH_PREFIX + std::string(name);
+		eastl::string newName = eastl::string(LOCAL_BRANCH_PREFIX) + name;
 		UUID oldId = Utils::GenUUID(branch);
 		if (err == 0 && outValidName)
 		{
@@ -309,7 +309,7 @@ namespace QuickGit
 				err = git_branch_name(&branchName, branch);
 				if (err == 0)
 				{
-					std::string branchNameFull = LOCAL_BRANCH_PREFIX + std::string(branchName);
+					eastl::string branchNameFull = eastl::string(LOCAL_BRANCH_PREFIX) + branchName;
 					err = git_repository_set_head(repo, branchNameFull.c_str());
 				}
 			}
@@ -367,7 +367,7 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::GenerateDiff(git_commit* commit, std::vector<Diff>& out)
+	bool Client::GenerateDiff(git_commit* commit, eastl::vector<Diff>& out)
 	{
 		git_diff* diff = nullptr;
 		git_commit* parent = nullptr;
@@ -399,9 +399,9 @@ namespace QuickGit
 					git_buf patchStr = GIT_BUF_INIT;
 					if (git_patch_to_buf(&patchStr, patch) == 0 && patchStr.ptr)
 					{
-						std::string_view patchString = patchStr.ptr;
+						eastl::string_view patchString = patchStr.ptr;
 						size_t start = patchString.find_first_of('@');
-						if (start != std::string::npos)
+						if (start != eastl::string::npos)
 							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, patchStr.ptr + start);
 						else
 							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, "@@BinaryData");
@@ -425,7 +425,7 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::CreatePatch(git_commit* commit, std::string& out)
+	bool Client::CreatePatch(git_commit* commit, eastl::string& out)
 	{
 		git_buf buf = GIT_BUF_INIT;
 		git_email_create_options op = GIT_EMAIL_CREATE_OPTIONS_INIT;
@@ -434,7 +434,7 @@ namespace QuickGit
 		{
 			out = buf.ptr ? buf.ptr : "";
 			const size_t patchEnd = out.rfind("--");
-			if (patchEnd != std::string::npos)
+			if (patchEnd != eastl::string::npos)
 			{
 				out.resize(patchEnd + 2, '\0');
 				out += "\nQuickGit";

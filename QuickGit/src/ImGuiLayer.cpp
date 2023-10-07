@@ -287,20 +287,20 @@ namespace QuickGit
 		char CommitID[41];
 		UUID ID;
 
-		std::string AuthorName;
-		std::string AuthorEmail;
-		std::string AuthorDateTime;
-		std::string AuthorTimezoneOffset;
+		eastl::string AuthorName;
+		eastl::string AuthorEmail;
+		eastl::string AuthorDateTime;
+		eastl::string AuthorTimezoneOffset;
 
-		std::string CommitterName;
-		std::string CommitterEmail;
-		std::string CommitterDateTime;
-		std::string CommitterTimezoneOffset;
+		eastl::string CommitterName;
+		eastl::string CommitterEmail;
+		eastl::string CommitterDateTime;
+		eastl::string CommitterTimezoneOffset;
 
-		std::string Message;
-		std::string Description;
+		eastl::string Message;
+		eastl::string Description;
 
-		std::vector<std::string> Refs;
+		eastl::vector<eastl::string> Refs;
 	};
 
 	void GetCommit(git_commit* commit, Commit* out)
@@ -319,7 +319,7 @@ namespace QuickGit
 		out->AuthorName = author->name;
 		out->AuthorEmail = author->email;
 		char sign = committer->when.offset >= 0 ? '+' : '-';
-		out->AuthorTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(author->when.offset) / 60, author->when.offset % 60);
+		out->AuthorTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(author->when.offset) / 60, author->when.offset % 60).c_str();
 
 		git_time_t timestamp = author->when.time;
 		tm localTime;
@@ -331,7 +331,7 @@ namespace QuickGit
 		out->CommitterName = committer->name;
 		out->CommitterEmail = committer->email;
 		sign = committer->when.offset >= 0 ? '+' : '-';
-		out->CommitterTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(committer->when.offset) / 60, committer->when.offset % 60);
+		out->CommitterTimezoneOffset = std::format("{}{:02d}:{:02d}", sign, abs(committer->when.offset) / 60, committer->when.offset % 60).c_str();
 
 		timestamp = committer->when.time;
 		localtime_s(&localTime, &timestamp);
@@ -519,7 +519,7 @@ namespace QuickGit
 
 						if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 						{
-							std::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
+							eastl::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
 							for (git_reference* branch : branchHeads)
 							{
 								const bool isHeadBranch = branch == repoData->HeadBranch;
@@ -575,7 +575,7 @@ namespace QuickGit
 							{
 								if (repoData->BranchHeads.find(data->ID) != repoData->BranchHeads.end())
 								{
-									std::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
+									eastl::vector<git_reference*>& branchHeads = repoData->BranchHeads.at(data->ID);
 									for (git_reference* branch : branchHeads)
 									{
 										BranchData& branchData = repoData->Branches.at(branch);
@@ -658,7 +658,7 @@ namespace QuickGit
 								}
 								if (ImGui::MenuItem("Copy as Patch"))
 								{
-									std::string patch;
+									eastl::string patch;
 									if (Client::CreatePatch(g_SelectedCommit->Commit, patch))
 										ImGui::SetClipboardText(patch.c_str());
 									else
@@ -677,7 +677,7 @@ namespace QuickGit
 									GetCommit(g_SelectedCommit->Commit, &c);
 									char shortSHA[8];
 									strncpy_s(shortSHA, c.CommitID, COMMIT_SHORT_ID_LEN - 1);
-									std::string info = "SHA: ";
+									eastl::string info = "SHA: ";
 									info += shortSHA;
 									info += "\nAuthor: ";
 									info += c.AuthorName;
@@ -928,15 +928,15 @@ namespace QuickGit
 
 
 		ImGui::Begin("Repositories");
-		std::vector<std::unique_ptr<RepoData>>& repos = Client::GetRepositories();
-		for (const std::unique_ptr<RepoData>& repo : repos)
+		eastl::vector<eastl::unique_ptr<RepoData>>& repos = Client::GetRepositories();
+		for (const eastl::unique_ptr<RepoData>& repo : repos)
 		{
 			bool open = ImGui::TreeNodeEx(repo->Filepath.c_str(), ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf);
 			if (open) ImGui::TreePop();
 		}
 		ImGui::End();
 
-		for (std::vector<std::unique_ptr<RepoData>>::iterator it = repos.begin(); it != repos.end(); ++it)
+		for (eastl::vector<eastl::unique_ptr<RepoData>>::iterator it = repos.begin(); it != repos.end(); ++it)
 		{
 			RepoData* repoData = it->get();
 			bool opened = repoData;
@@ -952,12 +952,13 @@ namespace QuickGit
 
 
 
+		float frameHeight = ImGui::GetFrameHeight();
 		float frameHeightWithSpacing = ImGui::GetFrameHeightWithSpacing();
 
 		ImGui::Begin("Commit");
 		ImGui::Indent();
 		static Commit cd;
-		static std::vector<Diff> diffs;
+		static eastl::vector<Diff> diffs;
 
 		if (g_SelectedCommit && g_SelectedCommit->Commit != cd.CommitPtr)
 		{

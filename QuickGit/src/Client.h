@@ -30,7 +30,7 @@ namespace QuickGit
 
 	struct BranchData
 	{
-		std::string Name;
+		eastl::string Name;
 		BranchType Type;
 		uint32_t Color;
 
@@ -45,16 +45,16 @@ namespace QuickGit
 	{
 		git_repository* Repository = nullptr;
 
-		std::string Name{};
-		std::string Filepath{};
+		eastl::string Name{};
+		eastl::string Filepath{};
 		size_t UncommittedFiles = 0;
 
 		UUID Head = 0;
 		git_reference* HeadBranch = nullptr;
-		std::unordered_map<git_reference*, BranchData> Branches;
-		std::vector<CommitData> Commits;
-		std::unordered_map<UUID, std::vector<git_reference*>> BranchHeads;
-		std::unordered_map<UUID, uint64_t> CommitsIndexMap;
+		eastl::hash_map<git_reference*, BranchData> Branches;
+		eastl::vector<CommitData> Commits;
+		eastl::hash_map<UUID, eastl::vector<git_reference*>> BranchHeads;
+		eastl::hash_map<UUID, uint64_t> CommitsIndexMap;
 
 		~RepoData()
 		{
@@ -73,8 +73,8 @@ namespace QuickGit
 		git_delta_t Status;
 		uint64_t OldFileSize;
 		uint64_t NewFileSize;
-		std::string File;
-		std::string Patch;
+		eastl::string File;
+		eastl::string Patch;
 	};
 
 	class Client
@@ -83,12 +83,12 @@ namespace QuickGit
 		static void Init();
 		static void Shutdown();
 
-		static bool InitRepo(const std::string_view& path);
-		static std::vector<std::unique_ptr<RepoData>>& GetRepositories();
+		static bool InitRepo(const eastl::string_view& path);
+		static eastl::vector<eastl::unique_ptr<RepoData>>& GetRepositories();
 
 		static void UpdateHead(RepoData& repoData);
 		static void Fill(RepoData* data, git_repository* repo);
-		static bool GenerateDiff(git_commit* commit, std::vector<Diff>& out);
+		static bool GenerateDiff(git_commit* commit, eastl::vector<Diff>& out);
 
 		static git_reference* BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
 		static bool BranchRename(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);
@@ -96,6 +96,6 @@ namespace QuickGit
 		static bool BranchCheckout(git_reference* branch, bool force = false);
 		static bool BranchReset(RepoData* repo, git_commit* commit, git_reset_t resetType);
 		static bool CommitCheckout(git_commit* commit, bool force = false);
-		static bool CreatePatch(git_commit* commit, std::string& out);
+		static bool CreatePatch(git_commit* commit, eastl::string& out);
 	};
 }

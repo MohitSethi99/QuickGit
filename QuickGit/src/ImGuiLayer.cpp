@@ -28,6 +28,8 @@ namespace QuickGit
 	ImFont* g_SmallFont = nullptr;
 	ImFont* g_HeadingFont = nullptr;
 	ImFont* g_BoldFont = nullptr;
+	ImGuiTextFilter BranchFilter;
+	ImGuiTextFilter CommitsFilter;
 
 	static void AddIconFont(float fontSize)
 	{
@@ -359,15 +361,30 @@ namespace QuickGit
 
 	void ShowRepoBranches(RepoData* repoData)
 	{
+		const float cursorPosX = ImGui::GetCursorPosX();
+		BranchFilter.Draw("##BranchFilter", ImGui::GetContentRegionAvail().x);
+		if (!BranchFilter.IsActive())
+		{
+			ImGui::SameLine();
+			ImGui::SetCursorPosX(cursorPosX + ImGui::GetFontSize() * 0.75f);
+			ImGui::BeginDisabled();
+			ImGui::TextUnformatted(reinterpret_cast<const char*>(ICON_MDI_MAGNIFY " Filter..."));
+			ImGui::EndDisabled();
+		}
+
 		constexpr ImGuiTreeNodeFlags treeFlags = ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_DefaultOpen;
-		
-		if (ImGui::TreeNodeEx("Branches", treeFlags))
+		ImGui::BeginChild("Branches");
+		if (ImGui::TreeNodeEx("Locals", treeFlags))
 		{
 			for (const auto& [branchRef, branchData] : repoData->Branches)
 			{
+				if (BranchFilter.IsActive() && !(BranchFilter.PassFilter(branchData.Name.c_str())))
+					continue;
+
 				if (branchData.Type == BranchType::Local)
 				{
-					bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+					const char8_t* icon = (repoData->HeadBranch == branchRef ? ICON_MDI_CHECK_ALL : ICON_MDI_SOURCE_BRANCH);
+					bool open = ImGui::TreeNodeEx(branchData.Name.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf, "%s %s", icon, branchData.ShortName());
 					if (open)
 						ImGui::TreePop();
 				}
@@ -380,9 +397,12 @@ namespace QuickGit
 		{
 			for (const auto& [branchRef, branchData] : repoData->Branches)
 			{
+				if (BranchFilter.IsActive() && !(BranchFilter.PassFilter(branchData.Name.c_str())))
+					continue;
+
 				if (branchData.Type == BranchType::Remote)
 				{
-					bool open = ImGui::TreeNodeEx(branchData.ShortName(), treeFlags | ImGuiTreeNodeFlags_Leaf);
+					bool open = ImGui::TreeNodeEx(branchData.Name.c_str(), treeFlags | ImGuiTreeNodeFlags_Leaf, "%s %s", ICON_MDI_SOURCE_BRANCH, branchData.ShortName());
 					if (open)
 						ImGui::TreePop();
 				}
@@ -390,6 +410,7 @@ namespace QuickGit
 
 			ImGui::TreePop();
 		}
+		ImGui::EndChild();
 	}
 
 	void ShowRepoWindow(RepoData* repoData, bool* opened)
@@ -469,8 +490,16 @@ namespace QuickGit
 				else
 					ImGui::TextUnformatted("Detached HEAD");
 
-				static ImGuiTextFilter filter;
-				filter.Draw();
+				const float cursorPosX = ImGui::GetCursorPosX();
+				CommitsFilter.Draw("##CommitsFilter", ImGui::GetContentRegionAvail().x);
+				if (!CommitsFilter.IsActive())
+				{
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(cursorPosX + ImGui::GetFontSize() * 0.75f);
+					ImGui::BeginDisabled();
+					ImGui::TextUnformatted(reinterpret_cast<const char*>(ICON_MDI_MAGNIFY " Search SHA, author or message..."));
+					ImGui::EndDisabled();
+				}
 
 				constexpr ImGuiTableFlags tableFlags =
 					ImGuiTableFlags_PadOuterX |
@@ -506,7 +535,7 @@ namespace QuickGit
 					{
 						CommitData* data = &(repoData->Commits[i]);
 
-						if (filter.IsActive() && !(filter.PassFilter(data->CommitID) || filter.PassFilter(data->Message) || filter.PassFilter(data->AuthorName)))
+						if (CommitsFilter.IsActive() && !(CommitsFilter.PassFilter(data->CommitID, data->CommitID + COMMIT_SHORT_ID_LEN - 1) || CommitsFilter.PassFilter(data->Message) || CommitsFilter.PassFilter(data->AuthorName)))
 							continue;
 
 						if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())

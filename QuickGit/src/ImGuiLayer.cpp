@@ -359,6 +359,25 @@ namespace QuickGit
 		git_reference_iterator_free(iter);
 	}
 
+	int BranchNameFilterTextCallback(ImGuiInputTextCallbackData* data)
+	{
+		switch (data->EventChar)
+		{
+			case ' ': data->EventChar = '-'; return 0;
+			case '~': return 1;
+			case '@': return 1;
+			case '^': return 1;
+			case '*': return 1;
+			case '?': return 1;
+			case ':': return 1;
+			case '[': return 1;
+			case '\\': return 1;
+			case '<': return 1;
+			case '>': return 1;
+			default: return 0;
+		}
+	};
+
 	void ShowRepoBranches(RepoData* repoData)
 	{
 		const float cursorPosX = ImGui::GetCursorPosX();
@@ -780,7 +799,7 @@ namespace QuickGit
 							ImGui::TableNextColumn();
 							ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
 							static char branchName[256] = "";
-							ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256);
+							ImGui::InputTextWithHint("##NewBranchName", "Enter branch name", branchName, 256, ImGuiInputTextFlags_CallbackCharFilter, BranchNameFilterTextCallback);
 
 							ImGui::TableNextRow();
 							ImGui::TableNextColumn();
@@ -835,7 +854,7 @@ namespace QuickGit
 						ImGui::Text("%s %s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(selectedBranch).ShortName(), ICON_MDI_ARROW_RIGHT);
 						ImGui::SameLine();
 						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-						ImGui::InputTextWithHint("##NewBranchName", "Enter new branch name", branchName, 256);
+						ImGui::InputTextWithHint("##NewBranchName", "Enter new branch name", branchName, 256, ImGuiInputTextFlags_CallbackCharFilter, BranchNameFilterTextCallback);
 
 						ImGui::BeginDisabled(branchName[0] == '\0');
 						if (ImGui::Button("Rename"))

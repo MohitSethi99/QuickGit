@@ -289,7 +289,6 @@ namespace QuickGit
 					break;
 				}
 			}
-
 			git_reference_free(branch);
 		}
 
@@ -317,8 +316,9 @@ namespace QuickGit
 					err = git_repository_set_head(repo, branchNameFull.c_str());
 				}
 			}
-			git_commit_free(commit);
 		}
+
+		git_commit_free(commit);
 
 		return err == 0;
 	}
@@ -371,32 +371,23 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::GenerateDiff(git_commit* commit, eastl::vector<Diff>& out)
+	void Client::FillDiff(git_diff* diff, Diff& out)
 	{
-		git_diff* diff = nullptr;
-		git_commit* parent = nullptr;
-		git_tree* commitTree = nullptr;
-		git_tree* parentTree = nullptr;
+		Stopwatch sw("FillDiff");
 
-		int err = git_commit_parent(&parent, commit, 0);
-		if (err == 0)
-			err = git_commit_tree(&commitTree, commit);
-		if (err == 0)
-			err = git_commit_tree(&parentTree, parent);
-
-		if (err == 0)
+		size_t diffDeltas = git_diff_num_deltas(diff);
+		for (size_t i = 0; i < diffDeltas; ++i)
 		{
-			git_diff_options diffOp = GIT_DIFF_OPTIONS_INIT;
-			diffOp.flags = GIT_DIFF_PATIENCE | GIT_DIFF_MINIMAL;
-			err = git_diff_tree_to_tree(&diff, git_commit_owner(commit), parentTree, commitTree, &diffOp);
-		}
+			const git_diff_delta* delta = git_diff_get_delta(diff, i);
 
-		if (diff)
-		{
-			size_t diffDeltas = git_diff_num_deltas(diff);
-			for (size_t i = 0; i < diffDeltas; ++i)
+			#if 0
+			if (delta->flags == GIT_DIFF_FLAG_BINARY)
 			{
-				const git_diff_delta* delta = git_diff_get_delta(diff, i);
+				out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, "@@BinaryData");
+			}
+			else
+			#endif
+			{
 				git_patch* patch = nullptr;
 				if (git_patch_from_diff(&patch, diff, i) == 0)
 				{
@@ -404,28 +395,117 @@ namespace QuickGit
 					if (git_patch_to_buf(&patchStr, patch) == 0 && patchStr.ptr)
 					{
 						eastl::string_view patchString = patchStr.ptr;
-						size_t start = patchString.find_first_of('@');
-						if (start != eastl::string::npos)
-							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, patchStr.ptr + start);
-						else
-							out.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, "@@BinaryData");
-						git_buf_free(&patchStr);
+						const size_t start = patchString.find_first_of('@');
+						const size_t offset = start != eastl::string::npos ? start : 0;
+						out.Patches.emplace_back(delta->status, delta->old_file.size, delta->new_file.size, delta->new_file.path, patchStr.ptr + offset);
 					}
-
-					git_patch_free(patch);
+					git_buf_free(&patchStr);
 				}
+				git_patch_free(patch);
 			}
 		}
+	}
 
-		if (parentTree)
-			git_tree_free(parentTree);
-		if (commitTree)
-			git_tree_free(commitTree);
-		if (parent)
-			git_commit_free(parent);
+	bool Client::GenerateDiff(git_commit* commit, Diff& out, uint32_t contextLines)
+	{
+		git_commit* parent = nullptr;
+		int err = git_commit_parent(&parent, commit, 0);
+
+		bool success = err == 0;
+		if (success)
+			success = GenerateDiff(parent, commit, out, contextLines);
+
+		git_commit_free(parent);
+
+		return success;
+	}
+
+	bool Client::GenerateDiff(git_commit* oldCommit, git_commit* newCommit, Diff& out, uint32_t contextLines)
+	{
+		Stopwatch sw("GenerateDiff");
+
+		git_diff* diff = nullptr;
+		git_tree* oldCommitTree = nullptr;
+		git_tree* newCommitTree = nullptr;
+
+		int err = git_commit_tree(&newCommitTree, newCommit);
+		if (err == 0)
+			err = git_commit_tree(&oldCommitTree, oldCommit);
+
+		if (err == 0)
+		{
+			git_diff_options diffOp = GIT_DIFF_OPTIONS_INIT;
+			diffOp.flags = GIT_DIFF_MINIMAL | GIT_DIFF_INDENT_HEURISTIC | GIT_DIFF_UPDATE_INDEX | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
+			diffOp.context_lines = contextLines;
+			err = git_diff_tree_to_tree(&diff, git_commit_owner(newCommit), oldCommitTree, newCommitTree, &diffOp);
+		}
+
 		if (diff)
-			git_diff_free(diff);
+		{
+			FillDiff(diff, out);
+		}
 
+		git_diff_free(diff);
+		git_tree_free(oldCommitTree);
+		git_tree_free(newCommitTree);
+
+		return err == 0;
+	}
+
+	bool Client::GenerateDiffWithWorkDir(git_repository* repo, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines)
+	{
+		git_reference* head = nullptr;
+		int err = git_repository_head(&head, repo);
+
+		const git_oid* oid = git_reference_target(head);
+
+		git_commit* commit = nullptr;
+		if (err == 0)
+		{
+			err = git_commit_lookup(&commit, repo, oid);
+			err = GenerateDiffWithWorkDir(commit, outUnstaged, outStaged, contextLines) ? 0 : -1;
+		}
+
+		git_commit_free(commit);
+		git_reference_free(head);
+
+		return err == 0;
+	}
+
+	bool Client::GenerateDiffWithWorkDir(git_commit* commit, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines)
+	{
+		Stopwatch sw("GenerateDiff");
+
+		git_diff* unstagedDiff = nullptr;
+		git_diff* stagedDiff = nullptr;
+		git_tree* commitTree = nullptr;
+
+		int err = git_commit_tree(&commitTree, commit);
+
+		if (err == 0)
+		{
+			git_repository* repo = git_commit_owner(commit);
+
+			git_diff_options diffOp = GIT_DIFF_OPTIONS_INIT;
+			diffOp.flags = GIT_DIFF_MINIMAL | GIT_DIFF_INDENT_HEURISTIC | GIT_DIFF_UPDATE_INDEX | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
+			diffOp.context_lines = contextLines;
+
+			err = git_diff_index_to_workdir(&unstagedDiff, repo, nullptr, &diffOp);
+			
+			if (err == 0)
+				err = git_diff_tree_to_index(&stagedDiff, repo, commitTree, nullptr, &diffOp);
+		}
+
+		if (err == 0 && unstagedDiff && stagedDiff)
+		{
+			FillDiff(unstagedDiff, outUnstaged);
+			FillDiff(stagedDiff, outStaged);
+		}
+
+		git_tree_free(commitTree);
+		git_diff_free(unstagedDiff);
+		git_diff_free(stagedDiff);
+		
 		return err == 0;
 	}
 
@@ -445,8 +525,106 @@ namespace QuickGit
 				out += " 0.0.1";
 				out += "\n\n";
 			}
-			git_buf_free(&buf);
 		}
+
+		git_buf_free(&buf);
+		
+		return err == 0;
+	}
+
+	// Uses commandline to do add/restore as git_apply() is not consistent
+	// issue: https://github.com/libgit2/libgit2/issues/6643
+	bool Client::AddToIndex(git_repository* repo, const char* filepath)
+	{
+		std::filesystem::path repoPath = git_repository_workdir(repo);
+
+		git_index* index = nullptr;
+		int err = git_repository_index(&index, repo);
+
+		if (err == 0)
+		{
+			std::filesystem::path currentWorkDir = std::filesystem::current_path();
+			std::filesystem::current_path(repoPath);
+
+			eastl::string command = "git add ";
+			command += "\"";
+			command += filepath;
+			command += "\"";
+			err = std::system(command.c_str());
+
+			std::filesystem::current_path(currentWorkDir);
+		}
+
+		git_index_free(index);
+
+		return err == 0;
+	}
+
+	bool Client::RemoveFromIndex(git_repository* repo, const char* filepath)
+	{
+		std::filesystem::path repoPath = git_repository_workdir(repo);
+
+		git_index* index = nullptr;
+		int err = git_repository_index(&index, repo);
+
+		if (err == 0)
+		{
+			std::filesystem::path currentWorkDir = std::filesystem::current_path();
+			std::filesystem::current_path(repoPath);
+
+			eastl::string command = "git restore --staged ";
+			command += "\"";
+			command += filepath;
+			command += "\"";
+			err = std::system(command.c_str());
+
+			std::filesystem::current_path(currentWorkDir);
+		}
+
+		git_index_free(index);
+
+		return err == 0;
+	}
+
+	bool Client::Commit(git_repository* repo, const char* summary, const char* description)
+	{
+		git_reference* ref = nullptr;
+		git_object* parent = nullptr;
+		int err = git_revparse_ext(&parent, &ref, repo, "HEAD");
+
+		git_index* index = nullptr;
+		if (err == 0)
+			err = git_repository_index(&index, repo);
+
+		git_oid treeId;
+		if (err == 0)
+			err = git_index_write_tree(&treeId, index);
+
+		if (err == 0)
+			err = git_index_write(index);
+
+		git_tree* tree = nullptr;
+		if (err == 0)
+			err = git_tree_lookup(&tree, repo, &treeId);
+
+		git_signature* signature = nullptr;
+		if (err == 0)
+			err = git_signature_default(&signature, repo);
+
+		git_oid commitId;
+		if (err == 0)
+		{
+			eastl::string message = summary;
+			message += "\n\n";
+			message += description;
+			err = git_commit_create_v(&commitId, repo,  "HEAD", signature, signature, nullptr, message.c_str(), tree, parent ? 1 : 0, parent);
+		}
+
+		git_index_free(index);
+		git_signature_free(signature);
+		git_tree_free(tree);
+		git_object_free(parent);
+		git_reference_free(ref);
 
 		return err == 0;
 	}

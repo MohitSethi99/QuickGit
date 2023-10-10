@@ -22,7 +22,7 @@ namespace QuickGit
 {
 	GLFWwindow* g_Window;
 	char g_Path[2048];
-	CommitData* g_SelectedCommit;
+	static RepoData* s_SelectedRepository = nullptr;
 
 	ImFont* g_DefaultFont = nullptr;
 	ImFont* g_SmallFont = nullptr;
@@ -451,8 +451,12 @@ namespace QuickGit
 
 			Action action = Action::None;
 			static git_reference* selectedBranch = nullptr;
+			CommitData* selectedCommit = nullptr;
 
 			ImGui::Begin(repoData->Name.c_str(), opened);
+
+			if (ImGui::IsWindowFocused())
+				s_SelectedRepository = repoData;
 
 			if (ImGui::IsItemHovered())
 			{
@@ -558,7 +562,7 @@ namespace QuickGit
 							continue;
 
 						if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
-							g_SelectedCommit = data;
+							repoData->SelectedCommit = data->ID;
 
 						++row;
 
@@ -590,9 +594,9 @@ namespace QuickGit
 						}
 
 						const bool isHead = data->ID == repoData->Head;
-						if (!g_SelectedCommit && isHead)
-							g_SelectedCommit = data;
-						const bool selected = g_SelectedCommit && g_SelectedCommit->Commit == data->Commit;
+						if (repoData->SelectedCommit == 0 && isHead)
+							repoData->SelectedCommit = data->ID;
+						const bool selected = repoData->SelectedCommit != 0 && repoData->SelectedCommit == data->ID;
 
 						if (disabled && isHead)
 							disabled = false;
@@ -707,7 +711,7 @@ namespace QuickGit
 								if (ImGui::MenuItem("Copy as Patch"))
 								{
 									eastl::string patch;
-									if (Client::CreatePatch(g_SelectedCommit->Commit, patch))
+									if (Client::CreatePatch(data->Commit, patch))
 										ImGui::SetClipboardText(patch.c_str());
 									else
 										error = git_error_last()->message;
@@ -716,13 +720,13 @@ namespace QuickGit
 								ImGui::Separator();
 								if (ImGui::MenuItem("Copy Commit SHA"))
 								{
-									const git_oid* oid = git_commit_id(g_SelectedCommit->Commit);
+									const git_oid* oid = git_commit_id(data->Commit);
 									ImGui::SetClipboardText(git_oid_tostr_s(oid));
 								}
 								if (ImGui::MenuItem("Copy Commit Info"))
 								{
 									Commit c;
-									GetCommit(g_SelectedCommit->Commit, &c);
+									GetCommit(data->Commit, &c);
 									char shortSHA[8];
 									strncpy_s(shortSHA, c.CommitID, COMMIT_SHORT_ID_LEN - 1);
 									eastl::string info = "SHA: ";
@@ -751,7 +755,10 @@ namespace QuickGit
 				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
 
 				char invalidNameError[] = "Branch name is invalid!";
-				if (g_SelectedCommit)
+				auto it = repoData->CommitsIndexMap.find(repoData->SelectedCommit);
+				if (it != repoData->CommitsIndexMap.end())
+					selectedCommit = &(repoData->Commits[it->second]);
+				if (selectedCommit)
 				{
 					if (action == Action::BranchCreate)
 					{
@@ -788,9 +795,9 @@ namespace QuickGit
 
 							ImGui::TextUnformatted("Create Branch at:");
 							ImGui::TableNextColumn();
-							ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, g_SelectedCommit->CommitID);
+							ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, selectedCommit->CommitID);
 							ImGui::SameLine();
-							ImGuiExt::TextEllipsis(g_SelectedCommit->Message);
+							ImGuiExt::TextEllipsis(selectedCommit->Message);
 
 							ImGui::TableNextRow();
 							ImGui::TableNextColumn();
@@ -816,7 +823,7 @@ namespace QuickGit
 							if (ImGui::Button("Create"))
 							{
 								bool validName = false;
-								git_reference* branch = Client::BranchCreate(repoData, branchName, g_SelectedCommit->Commit, validName);
+								git_reference* branch = Client::BranchCreate(repoData, branchName, selectedCommit->Commit, validName);
 								bool success = branch;
 								if (branch && checkoutAfterCreate)
 									success = Client::BranchCheckout(branch);
@@ -895,15 +902,15 @@ namespace QuickGit
 
 						ImGui::TextUnformatted("Commit to checkout:");
 						ImGui::SameLine();
-						ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, g_SelectedCommit->CommitID);
+						ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, selectedCommit->CommitID);
 						ImGui::SameLine();
-						ImGuiExt::TextEllipsis(g_SelectedCommit->Message);
+						ImGuiExt::TextEllipsis(selectedCommit->Message);
 
 						ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
 
 						if (ImGui::Button("Checkout Commit"))
 						{
-							if (!Client::CommitCheckout(g_SelectedCommit->Commit, false))
+							if (!Client::CommitCheckout(selectedCommit->Commit, false))
 								error = git_error_last()->message;
 
 							Client::UpdateHead(*repoData);
@@ -993,6 +1000,9 @@ namespace QuickGit
 			ShowRepoWindow(repoData, &opened);
 			if (!opened)
 			{
+				if (s_SelectedRepository == repoData)
+					s_SelectedRepository = nullptr;
+
 				repos.erase(it);
 				break;
 			}
@@ -1005,135 +1015,293 @@ namespace QuickGit
 		float frameHeight = ImGui::GetFrameHeight();
 		float frameHeightWithSpacing = ImGui::GetFrameHeightWithSpacing();
 
-		ImGui::Begin("Commit");
-		ImGui::Indent();
-		static Commit cd;
-		static eastl::vector<Diff> diffs;
-
-		if (g_SelectedCommit && g_SelectedCommit->Commit != cd.CommitPtr)
+		CommitData* selectedCommit = nullptr;
+		if (s_SelectedRepository && s_SelectedRepository->SelectedCommit)
 		{
-			GetCommit(g_SelectedCommit->Commit, &cd);
-			diffs.clear();
-			Client::GenerateDiff(g_SelectedCommit->Commit, diffs);
+			if (s_SelectedRepository->CommitsIndexMap.find(s_SelectedRepository->SelectedCommit) != s_SelectedRepository->CommitsIndexMap.end())
+			{
+				size_t index = s_SelectedRepository->CommitsIndexMap.at(s_SelectedRepository->SelectedCommit);
+				selectedCommit = &s_SelectedRepository->Commits[index];
+			}
 		}
 
-		if (cd.CommitPtr)
+		ImGui::Begin("Commit");
 		{
-			if (ImGui::BeginTable("CommitTopTable", 2))
+			ImGui::Indent();
+			static Commit cd;
+			static Diff diffs;
+
+			if (selectedCommit && selectedCommit->Commit != cd.CommitPtr)
 			{
-				ImGui::TableNextRow();
-				ImGui::TableNextColumn();
-
-				ImGui::TextUnformatted("AUTHOR");
-				ImGui::Spacing();
-				ImGui::PushFont(g_BoldFont);
-				ImGui::TextUnformatted(cd.AuthorName.c_str());
-				ImGui::PopFont();
-				ImGui::SameLine();
-				ImGui::TextUnformatted(cd.AuthorEmail.c_str());
-				ImGui::TextUnformatted(cd.AuthorDateTime.c_str());
-				ImGui::SameLine();
-				ImGui::TextUnformatted(cd.AuthorTimezoneOffset.c_str());
-
-				ImGui::TableNextColumn();
-
-				ImGui::TextUnformatted("COMMITTER");
-				ImGui::Spacing();
-				ImGui::PushFont(g_BoldFont);
-				ImGui::TextUnformatted(cd.CommitterName.c_str());
-				ImGui::PopFont();
-				ImGui::SameLine();
-				ImGui::TextUnformatted(cd.CommitterEmail.c_str());
-				ImGui::TextUnformatted(cd.CommitterDateTime.c_str());
-				ImGui::SameLine();
-				ImGui::TextUnformatted(cd.CommitterTimezoneOffset.c_str());
-
-				ImGui::EndTable();
+				GetCommit(selectedCommit->Commit, &cd);
+				diffs.Patches.clear();
+				Client::GenerateDiff(selectedCommit->Commit, diffs);
 			}
 
-			ImGui::Spacing();
-
-			if (ImGui::BeginTable("CommitMidTable", 2, ImGuiTableFlags_SizingFixedFit))
+			if (cd.CommitPtr)
 			{
-				ImGui::TableNextRow();
-				ImGui::TableNextColumn();
-
-				if (!cd.Refs.empty())
-					ImGui::TextUnformatted("REFS");
-				ImGui::TextUnformatted("SHA");
-				ImGui::TextUnformatted("Internal ID");
-
-				ImGui::TableNextColumn();
-
-				for (size_t i = 0, sz = cd.Refs.size(); i < sz; ++i)
+				if (ImGui::BeginTable("CommitTopTable", 2))
 				{
-					ImGuiExt::FramedTextUnformatted({0, 0}, ImGui::GetColorU32(ImGuiCol_FrameBg), true, 2.0f, cd.Refs[i].c_str());
-					if (i < sz - 1)
-						ImGui::SameLine(0, ImGui::GetTextLineHeight());
+					ImGui::TableNextRow();
+					ImGui::TableNextColumn();
+
+					ImGui::TextUnformatted("AUTHOR");
+					ImGui::Spacing();
+					ImGui::PushFont(g_BoldFont);
+					ImGui::TextUnformatted(cd.AuthorName.c_str());
+					ImGui::PopFont();
+					ImGui::SameLine();
+					ImGui::TextUnformatted(cd.AuthorEmail.c_str());
+					ImGui::TextUnformatted(cd.AuthorDateTime.c_str());
+					ImGui::SameLine();
+					ImGui::TextUnformatted(cd.AuthorTimezoneOffset.c_str());
+
+					ImGui::TableNextColumn();
+
+					ImGui::TextUnformatted("COMMITTER");
+					ImGui::Spacing();
+					ImGui::PushFont(g_BoldFont);
+					ImGui::TextUnformatted(cd.CommitterName.c_str());
+					ImGui::PopFont();
+					ImGui::SameLine();
+					ImGui::TextUnformatted(cd.CommitterEmail.c_str());
+					ImGui::TextUnformatted(cd.CommitterDateTime.c_str());
+					ImGui::SameLine();
+					ImGui::TextUnformatted(cd.CommitterTimezoneOffset.c_str());
+
+					ImGui::EndTable();
 				}
-				ImGui::TextUnformatted(cd.CommitID);
-				ImGui::Text("%llu", cd.ID);
 
-				ImGui::EndTable();
-			}
-			
-			ImGui::Spacing();
-			ImGui::Separator();
-			ImGui::Spacing();
-			
-			ImGui::PushFont(g_HeadingFont);
-			ImGui::TextWrapped(cd.Message.c_str());
-			ImGui::PopFont();
-			if (!cd.Description.empty())
-			{
-				ImGui::TextWrapped(cd.Description.c_str());
-			}
-			ImGui::Spacing();
+				ImGui::Spacing();
 
-			ImGui::Separator();
-
-			ImGui::Spacing();
-			for (auto& diff : diffs)
-			{
-				ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(diff.Status));
-				bool open = ImGui::TreeNodeEx(diff.File.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth);
-				ImGui::PopStyleColor();
-				if (open)
+				if (ImGui::BeginTable("CommitMidTable", 2, ImGuiTableFlags_SizingFixedFit))
 				{
-					ImGui::Indent(frameHeightWithSpacing);
-					if (diff.Patch == "@@BinaryData")
+					ImGui::TableNextRow();
+					ImGui::TableNextColumn();
+
+					if (!cd.Refs.empty())
+						ImGui::TextUnformatted("REFS");
+					ImGui::TextUnformatted("SHA");
+					ImGui::TextUnformatted("Internal ID");
+
+					ImGui::TableNextColumn();
+
+					for (size_t i = 0, sz = cd.Refs.size(); i < sz; ++i)
 					{
-						ImGui::TextUnformatted(diff.Patch.c_str());
-						if (diff.NewFileSize)
+						ImGuiExt::FramedTextUnformatted({ 0, 0 }, ImGui::GetColorU32(ImGuiCol_FrameBg), true, 2.0f, cd.Refs[i].c_str());
+						if (i < sz - 1)
+							ImGui::SameLine(0, ImGui::GetTextLineHeight());
+					}
+					ImGui::TextUnformatted(cd.CommitID);
+					ImGui::Text("%llu", cd.ID);
+
+					ImGui::EndTable();
+				}
+
+				ImGui::Spacing();
+				ImGui::Separator();
+				ImGui::Spacing();
+
+				ImGui::PushFont(g_HeadingFont);
+				ImGui::TextWrapped(cd.Message.c_str());
+				ImGui::PopFont();
+				if (!cd.Description.empty())
+				{
+					ImGui::TextWrapped(cd.Description.c_str());
+				}
+				ImGui::Spacing();
+
+				ImGui::Separator();
+
+				ImGui::Spacing();
+				for (auto& diff : diffs.Patches)
+				{
+				#if 0
+					std::filesystem::path filepath = diff.File;
+
+					uint32_t count = 0;
+					for ([[maybe_unused]] const auto& entry : filepath)
+						count++;
+					static int selection_mask = 0;
+					auto clickState = DirectoryTreeViewRecursive(filepath, &count, &selection_mask);
+				#endif
+
+					ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(diff.Status));
+					bool open = ImGui::TreeNodeEx(diff.File.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth);
+					ImGui::PopStyleColor();
+					if (open)
+					{
+						ImGui::Indent(frameHeightWithSpacing);
+						if (diff.Patch == "@@BinaryData")
 						{
-							ImGui::Indent(frameHeightWithSpacing);
-							if (diff.OldFileSize)
+							ImGui::TextUnformatted(diff.Patch.c_str());
+							if (diff.NewFileSize)
 							{
-								ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_DELETED));
-								ImGui::Text("Old: %u Bytes", diff.OldFileSize);
+								ImGui::Indent(frameHeightWithSpacing);
+								if (diff.OldFileSize)
+								{
+									ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_DELETED));
+									ImGui::Text("Old: %u Bytes", diff.OldFileSize);
+									ImGui::PopStyleColor();
+									ImGui::SameLine(0, frameHeightWithSpacing);
+								}
+
+								ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_ADDED));
+								ImGui::Text("New: %u Bytes", diff.NewFileSize);
 								ImGui::PopStyleColor();
-								ImGui::SameLine(0, frameHeightWithSpacing);
+								ImGui::Unindent(frameHeightWithSpacing);
+							}
+						}
+						else
+						{
+							ImVec2 size = ImGui::CalcTextSize(diff.Patch.c_str());
+							size.y += ImGui::GetFrameHeightWithSpacing();
+							ImGui::InputTextMultiline(diff.File.c_str(), &diff.Patch[0], diff.Patch.size(), { ImGui::GetContentRegionAvail().x, size.y }, ImGuiInputTextFlags_ReadOnly);
+						}
+
+						ImGui::Unindent(frameHeightWithSpacing);
+						ImGui::TreePop();
+					}
+				}
+			}
+			ImGui::Unindent();
+		}
+		ImGui::End();
+
+		ImGui::Begin("Local Changes");
+		{
+			ImGui::Indent();
+
+			static git_commit* head = nullptr;
+			static Diff unstaged;
+			static Diff staged;
+			static uint32_t contextLines = 3;
+			static bool showFullContent = false;
+
+			if (ImGui::Button(reinterpret_cast<const char*>(ICON_MDI_REFRESH)))
+				head = nullptr;
+			ImGui::SameLine();
+			if (ImGui::Button(reinterpret_cast<const char*>(ICON_MDI_COGS)))
+				ImGui::OpenPopup("Changes Prefs");
+
+			if (ImGui::BeginPopup("Changes Prefs"))
+			{
+				if (ImGui::Checkbox("Full Content", &showFullContent))
+					head = nullptr;
+				ImGui::BeginDisabled(showFullContent);
+				static const uint32_t step = 1;
+				static const uint32_t fastStep = 3;
+				if (ImGui::InputScalar("Context Lines", ImGuiDataType_U32, &contextLines, &step, &fastStep))
+					head = nullptr;
+				ImGui::EndDisabled();
+				ImGui::EndPopup();
+			}
+			
+			if (selectedCommit && selectedCommit->Commit != head)
+			{
+				head = selectedCommit->Commit;
+				unstaged.Patches.clear();
+				staged.Patches.clear();
+				Client::GenerateDiffWithWorkDir(git_commit_owner(head), unstaged, staged, showFullContent ? INT_MAX : contextLines);
+			}
+			
+			if (head)
+			{
+				for (int i = 0; i < 2; ++i)
+				{
+					bool stageArea = i != 0;
+					auto& diffs = stageArea ? staged : unstaged;
+					ImGui::TextUnformatted(i == 0 ? "Unstaged" : "Staged");
+					for (auto& diff : diffs.Patches)
+					{
+						ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(diff.Status));
+						bool open = ImGui::TreeNodeEx(diff.File.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow);
+						if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
+						{
+							bool success = false;
+							if (stageArea)
+								success = Client::RemoveFromIndex(git_commit_owner(head), diff.File.c_str());
+							else
+								success = Client::AddToIndex(git_commit_owner(head), diff.File.c_str());
+
+							if (!success)
+							{
+								if (const git_error* er = git_error_last())
+									printf("%s\n", er->message);
 							}
 
-							ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_ADDED));
-							ImGui::Text("New: %u Bytes", diff.NewFileSize);
-							ImGui::PopStyleColor();
+							if (success)
+								head = nullptr;
+						}
+						ImGui::PopStyleColor();
+						if (open)
+						{
+							ImGui::Indent(frameHeightWithSpacing);
+							if (diff.Patch == "@@BinaryData")
+							{
+								ImGui::TextUnformatted(diff.Patch.c_str());
+								if (diff.NewFileSize)
+								{
+									ImGui::Indent(frameHeightWithSpacing);
+									if (diff.OldFileSize)
+									{
+										ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_DELETED));
+										ImGui::Text("Old: %u Bytes", diff.OldFileSize);
+										ImGui::PopStyleColor();
+										ImGui::SameLine(0, frameHeightWithSpacing);
+									}
+
+									ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(GIT_DELTA_ADDED));
+									ImGui::Text("New: %u Bytes", diff.NewFileSize);
+									ImGui::PopStyleColor();
+									ImGui::Unindent(frameHeightWithSpacing);
+								}
+							}
+							else
+							{
+								ImVec2 size = ImGui::CalcTextSize(diff.Patch.c_str());
+								size.y += ImGui::GetFrameHeightWithSpacing();
+								ImGui::InputTextMultiline(diff.File.c_str(), &diff.Patch[0], diff.Patch.size(), { ImGui::GetContentRegionAvail().x, size.y }, ImGuiInputTextFlags_ReadOnly);
+							}
+
 							ImGui::Unindent(frameHeightWithSpacing);
+							ImGui::TreePop();
 						}
 					}
-					else
-					{
-						ImVec2 size = ImGui::CalcTextSize(diff.Patch.c_str());
-						size.y += ImGui::GetFrameHeightWithSpacing();
-						ImGui::InputTextMultiline(diff.File.c_str(), &diff.Patch[0], diff.Patch.size(), { ImGui::GetContentRegionAvail().x, size.y }, ImGuiInputTextFlags_ReadOnly);
-					}
-
-					ImGui::Unindent(frameHeightWithSpacing);
-					ImGui::TreePop();
 				}
+				static char subject[512];
+				static char desc[2048];
+
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+				if (ImGui::InputTextWithHint("##CommitSubject", "Commit subject", subject, 512, ImGuiInputTextFlags_EnterReturnsTrue))
+					ImGui::SetKeyboardFocusHere();
+
+				ImVec2 descriptionInputBoxSize = ImGui::GetContentRegionAvail();
+				descriptionInputBoxSize.y -= frameHeightWithSpacing;
+				ImGui::InputTextMultiline("##CommitDescription", desc, 2048, descriptionInputBoxSize);
+				ImGui::BeginDisabled(staged.Patches.empty() || subject[0] == 0);
+				eastl::string commitLabel = (staged.Patches.empty() ? "Commit" : std::format("Commit {} File(s)", staged.Patches.size()).c_str());
+				if (ImGui::Button(commitLabel.c_str()))
+				{
+					bool success = Client::Commit(git_commit_owner(head), subject, desc);
+
+					if (success)
+					{
+						memset(subject, 0, sizeof(subject));
+						memset(desc, 0, sizeof(desc));
+						head = nullptr;
+					}
+					if (!success)
+					{
+						if (const git_error* er = git_error_last())
+							printf("%s\n", er->message);
+					}
+				}
+				ImGui::EndDisabled();
 			}
+			
+			ImGui::Unindent();
 		}
-		ImGui::Unindent();
 		ImGui::End();
 
 		if (ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down, frameHeight, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoNavFocus))

@@ -44,6 +44,7 @@ namespace QuickGit
 	struct RepoData
 	{
 		git_repository* Repository = nullptr;
+		UUID SelectedCommit = 0;
 
 		eastl::string Name{};
 		eastl::string Filepath{};
@@ -68,13 +69,18 @@ namespace QuickGit
 		}
 	};
 
-	struct Diff
+	struct Patch
 	{
 		git_delta_t Status;
 		uint64_t OldFileSize;
 		uint64_t NewFileSize;
 		eastl::string File;
 		eastl::string Patch;
+	};
+
+	struct Diff
+	{
+		eastl::vector<Patch> Patches;
 	};
 
 	class Client
@@ -88,7 +94,11 @@ namespace QuickGit
 
 		static void UpdateHead(RepoData& repoData);
 		static void Fill(RepoData* data, git_repository* repo);
-		static bool GenerateDiff(git_commit* commit, eastl::vector<Diff>& out);
+		static void FillDiff(git_diff* diff, Diff& out);
+		static bool GenerateDiff(git_commit* commit, Diff& out, uint32_t contextLines = 0);
+		static bool GenerateDiff(git_commit* oldCommit, git_commit* newCommit, Diff& out, uint32_t contextLines = 0);
+		static bool GenerateDiffWithWorkDir(git_commit* commit, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 0);
+		static bool GenerateDiffWithWorkDir(git_repository* repo, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 0);
 
 		static git_reference* BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
 		static bool BranchRename(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);
@@ -97,5 +107,9 @@ namespace QuickGit
 		static bool BranchReset(RepoData* repo, git_commit* commit, git_reset_t resetType);
 		static bool CommitCheckout(git_commit* commit, bool force = false);
 		static bool CreatePatch(git_commit* commit, eastl::string& out);
+
+		static bool AddToIndex(git_repository* repo, const char* filepath);
+		static bool RemoveFromIndex(git_repository* repo, const char* filepath);
+		static bool Commit(git_repository* repo, const char* summary, const char* description);
 	};
 }

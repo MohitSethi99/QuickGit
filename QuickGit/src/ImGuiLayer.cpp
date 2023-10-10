@@ -275,7 +275,7 @@ namespace QuickGit
 			case GIT_DELTA_RENAMED		: return ImVec4(0.60f, 0.20f, 0.80f, 1.00f);
 			case GIT_DELTA_COPIED 		: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 			case GIT_DELTA_IGNORED		: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-			case GIT_DELTA_UNTRACKED	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+			case GIT_DELTA_UNTRACKED	: return ImVec4(0.10f, 0.60f, 0.10f, 1.00f);
 			case GIT_DELTA_TYPECHANGE	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 			case GIT_DELTA_UNREADABLE	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 			case GIT_DELTA_CONFLICTED	: return ImVec4(1.00f, 1.00f, 1.00f, 1.00f);

@@ -812,6 +812,7 @@ namespace QuickGit
 							ImGui::TableNextColumn();
 							ImGui::TableNextColumn();
 
+							ImGui::BeginDisabled(branchName[0] == 0);
 							if (ImGui::Button("Create"))
 							{
 								bool validName = false;
@@ -830,6 +831,7 @@ namespace QuickGit
 								memset(branchName, 0, 256);
 								ImGui::CloseCurrentPopup();
 							}
+							ImGui::EndDisabled();
 
 							ImGui::SameLine();
 

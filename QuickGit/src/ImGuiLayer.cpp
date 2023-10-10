@@ -856,7 +856,7 @@ namespace QuickGit
 						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
 						ImGui::InputTextWithHint("##NewBranchName", "Enter new branch name", branchName, 256, ImGuiInputTextFlags_CallbackCharFilter, BranchNameFilterTextCallback);
 
-						ImGui::BeginDisabled(branchName[0] == '\0');
+						ImGui::BeginDisabled(branchName[0] == 0);
 						if (ImGui::Button("Rename"))
 						{
 							bool validName = false;
@@ -923,13 +923,13 @@ namespace QuickGit
 				// Error Window
 				{
 					static char gitErrorStr[2048] = "";
-					if (error && gitErrorStr[0] == '\0')
+					if (error && gitErrorStr[0] == 0)
 					{
 						strncpy_s(gitErrorStr, error, strlen(error));
 						ImGui::OpenPopup("Error");
 					}
 
-					if (gitErrorStr[0] != '\0')
+					if (gitErrorStr[0] != 0)
 					{
 						const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 						ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -940,7 +940,7 @@ namespace QuickGit
 
 							if (ImGui::Button("OK", ImVec2(120, 0)))
 							{
-								gitErrorStr[0] = '\0';
+								gitErrorStr[0] = 0;
 								error = nullptr;
 								ImGui::CloseCurrentPopup();
 							}

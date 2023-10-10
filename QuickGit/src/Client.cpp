@@ -436,7 +436,7 @@ namespace QuickGit
 			const size_t patchEnd = out.rfind("--");
 			if (patchEnd != eastl::string::npos)
 			{
-				out.resize(patchEnd + 2, '\0');
+				out.resize(patchEnd + 2, 0);
 				out += "\nQuickGit";
 				out += " 0.0.1";
 				out += "\n\n";

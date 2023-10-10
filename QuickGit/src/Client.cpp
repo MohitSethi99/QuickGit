@@ -149,7 +149,7 @@ namespace QuickGit
 					{
 						const git_signature* author = git_commit_author(commit);
 						const char* commitSummary = git_commit_summary(commit);
-						const UUID id = Utils::GenUUID(idStr.c_str());;
+						const UUID id = Utils::GenUUID(idStr.c_str());
 
 						CommitData cd;
 						cd.Commit = commit;
@@ -171,7 +171,6 @@ namespace QuickGit
 						strftime(cd.AuthorDate, sizeof(cd.AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
 
 						data->Commits.emplace_back(eastl::move(cd));
-						data->CommitsIndexMap.emplace(id, data->Commits.size() - 1);
 					}
 				}
 
@@ -189,6 +188,11 @@ namespace QuickGit
 		{
 			return lhs.CommitTime > rhs.CommitTime;
 		});
+
+		for (size_t i = 0, sz = data->Commits.size(); i < sz; ++i)
+		{
+			data->CommitsIndexMap.emplace(data->Commits[i].ID, i);
+		}
 
 		UpdateHead(*data);
 	}

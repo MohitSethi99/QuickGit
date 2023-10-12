@@ -101,8 +101,7 @@ namespace QuickGit
 
 		git_status_options statusOptions = GIT_STATUS_OPTIONS_INIT;
 		git_status_list* statusList = nullptr;
-		// TODO: error check
-		[[maybe_unused]] int err = git_status_list_new(&statusList, repo, &statusOptions);
+		git_status_list_new(&statusList, repo, &statusOptions);
 		data->UncommittedFiles = git_status_list_entrycount(statusList);
 		git_status_list_free(statusList);
 
@@ -132,8 +131,6 @@ namespace QuickGit
 				git_revwalk* walker;
 				git_revwalk_new(&walker, repo);
 				git_revwalk_push(walker, git_commit_id(targetCommit));
-
-				[[maybe_unused]] const char* targetCommitMessage = git_commit_message(targetCommit);
 
 				git_oid oid;
 				while (git_revwalk_next(&oid, walker) == 0)

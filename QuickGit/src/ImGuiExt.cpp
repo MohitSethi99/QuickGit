@@ -15,9 +15,9 @@ namespace QuickGit
 			size = ImGui::CalcTextSize(fmt);
 
 		ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
-		size.x += style.FramePadding.x;
+		size.x += style.FramePadding.x * 2.0f;
 		size.y += style.FramePadding.y * 0.75f;
-		rectMin.x -= style.FramePadding.x * 0.5f;
+		rectMin.x -= style.FramePadding.x;
 		rectMin.y -= style.FramePadding.y * 0.5f;
 		ImGui::RenderFrame(rectMin, rectMin + size, frameColor, frameBorder, frameRounding);
 		va_list args;
@@ -33,9 +33,9 @@ namespace QuickGit
 		if (size.x == 0 || size.y == 0)
 			size = ImGui::CalcTextSize(text, textEnd, true);
 		ImVec2 rectMin = ImGui::GetCurrentWindowRead()->DC.CursorPos;
-		size.x += style.FramePadding.x;
+		size.x += style.FramePadding.x * 2.0f;
 		size.y += style.FramePadding.y * 0.75f;
-		rectMin.x -= style.FramePadding.x * 0.5f;
+		rectMin.x -= style.FramePadding.x;
 		rectMin.y -= style.FramePadding.y * 0.5f;
 		ImGui::RenderFrame(rectMin, rectMin + size, frameColor, frameBorder, frameRounding);
 		ImGui::TextUnformatted(text, textEnd);
@@ -68,7 +68,7 @@ namespace QuickGit
 		ImGui::Spacing();
 	}
 
-	bool ImGuiExt::BeginPopupModal(const char* name)
+	bool ImGuiExt::BeginPopupModal(const char* name, const ImVec2& size /*= {0, 0}*/)
 	{
 		constexpr ImGuiWindowFlags modalWindowFlags =
 			ImGuiWindowFlags_NoTitleBar |
@@ -76,10 +76,8 @@ namespace QuickGit
 			ImGuiWindowFlags_NoSavedSettings;
 
 		const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-		constexpr float modalWidth = 1000.0f;
-
 		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		ImGui::SetNextWindowSize({ modalWidth, 0 }, ImGuiCond_Once);
+		ImGui::SetNextWindowSize(size, ImGuiCond_Appearing);
 
 		bool result = ImGui::BeginPopupModal(name, nullptr, modalWindowFlags);
 

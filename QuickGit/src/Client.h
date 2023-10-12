@@ -4,7 +4,8 @@
 
 #include "Utils.h"
 
-#define COMMIT_SHORT_ID_LEN 8
+#define COMMIT_SHORT_ID_LEN 7
+#define COMMIT_ID_LEN 41
 #define COMMIT_MSG_LEN 128
 #define COMMIT_NAME_LEN 40
 #define COMMIT_DATE_LEN 24
@@ -19,11 +20,12 @@ namespace QuickGit
 		char Message[COMMIT_MSG_LEN];
 		char AuthorName[COMMIT_NAME_LEN];
 		char AuthorDate[COMMIT_DATE_LEN];
-		char CommitID[COMMIT_SHORT_ID_LEN];
+		char CommitID[COMMIT_ID_LEN];
 
-		git_commit* Commit;
-		git_time_t CommitTime;
-		UUID ID;
+		size_t MessageSize = 0;
+		git_commit* Commit = nullptr;
+		git_time_t CommitTime = 0;
+		UUID ID = 0;
 	};
 
 	enum class BranchType { Remote, Local };

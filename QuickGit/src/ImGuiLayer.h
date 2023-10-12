@@ -2,7 +2,7 @@
 
 namespace QuickGit
 {
-	bool ImGuiInit();
+	bool ImGuiInit(const char** args, int count);
 	void ImGuiShutdown();
 	void ImGuiRun();
 }

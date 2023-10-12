@@ -2,9 +2,9 @@
 
 #include "ImGuiLayer.h"
 
-int main()
+int main(int argc, const char** argv)
 {
-	QuickGit::ImGuiInit();
+	QuickGit::ImGuiInit(argv, argc);
 	QuickGit::ImGuiRun();
 	QuickGit::ImGuiShutdown();
 

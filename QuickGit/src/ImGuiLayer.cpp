@@ -90,21 +90,21 @@ namespace QuickGit
 		{
 			colors[ImGuiCol_Text] = ImVec4(0.82f, 0.82f, 0.82f, 1.00f);
 			colors[ImGuiCol_TextDisabled] = ImVec4(0.42f, 0.42f, 0.42f, 1.00f);
-			colors[ImGuiCol_WindowBg] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-			colors[ImGuiCol_ChildBg] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-			colors[ImGuiCol_PopupBg] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-			colors[ImGuiCol_Border] = ImVec4(0.118f, 0.118f, 0.118f, 1.000f);
-			colors[ImGuiCol_BorderShadow] = ImVec4(0.275f, 0.275f, 0.275f, 1.00f);
+			colors[ImGuiCol_WindowBg] = ImVec4(0.17f, 0.17f, 0.18f, 1.00f);
+			colors[ImGuiCol_ChildBg] = ImVec4(0.13f, 0.13f, 0.13f, 1.00f);
+			colors[ImGuiCol_PopupBg] = ImVec4(0.169f, 0.169f, 0.180f, 1.000f);
+			colors[ImGuiCol_Border] = ImVec4(0.275f, 0.275f, 0.275f, 1.000f);
+			colors[ImGuiCol_BorderShadow] = ImVec4(0.275f, 0.275f, 0.275f, 0.00f);
 			colors[ImGuiCol_FrameBg] = ImVec4(0.22f, 0.22f, 0.22f, 1.00f);
 			colors[ImGuiCol_FrameBgHovered] = ImVec4(0.28f, 0.28f, 0.28f, 1.00f);
 			colors[ImGuiCol_FrameBgActive] = ImVec4(0.26f, 0.26f, 0.26f, 1.00f);
-			colors[ImGuiCol_TitleBg] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_TitleBgActive] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_MenuBarBg] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
+			colors[ImGuiCol_TitleBg] = ImVec4(0.1f, 0.1f, 0.1f, 1.00f);
+			colors[ImGuiCol_TitleBgActive] = ImVec4(0.1f, 0.1f, 0.1f, 1.00f);
+			colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.1f, 0.1f, 0.1f, 1.00f);
+			colors[ImGuiCol_MenuBarBg] = ImVec4(0.1f, 0.1f, 0.1f, 1.00f);
+			colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.10f, 0.10f, 0.00f);
 			colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.34f, 0.34f, 0.34f, 1.00f);
-			colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40f, 0.40f, 0.40f, 1.00f);
+			colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.588f, 0.588f, 0.588f, 1.000f);
 			colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.43f, 0.43f, 0.43f, 1.00f);
 			colors[ImGuiCol_CheckMark] = ImVec4(0.00f, 0.44f, 0.88f, 1.00f);
 			colors[ImGuiCol_SliderGrab] = ImVec4(0.000f, 0.434f, 0.878f, 1.000f);
@@ -115,17 +115,17 @@ namespace QuickGit
 			colors[ImGuiCol_Header] = ImVec4(0.18f, 0.18f, 0.18f, 1.00f);
 			colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.27f, 0.27f, 1.00f);
 			colors[ImGuiCol_HeaderActive] = ImVec4(0.27f, 0.27f, 0.27f, 1.00f);
-			colors[ImGuiCol_Separator] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_SeparatorHovered] = ImVec4(0.16f, 0.16f, 0.16f, 1.00f);
-			colors[ImGuiCol_SeparatorActive] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-			colors[ImGuiCol_ResizeGrip] = ImVec4(0.082f, 0.082f, 0.082f, 1.00f);
-			colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.19f, 0.19f, 0.19f, 1.00f);
-			colors[ImGuiCol_ResizeGripActive] = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
+			colors[ImGuiCol_Separator] = ImVec4(0.275f, 0.275f, 0.275f, 1.000f);
+			colors[ImGuiCol_SeparatorHovered] = ImVec4(0.275f, 0.275f, 0.275f, 1.000f);
+			colors[ImGuiCol_SeparatorActive] = ImVec4(0.275f, 0.275f, 0.275f, 1.000f);
+			colors[ImGuiCol_ResizeGrip] = ImVec4(0.471f, 0.471f, 0.471f, 1.000f);
+			colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.471f, 0.471f, 0.471f, 1.000f);
+			colors[ImGuiCol_ResizeGripActive] = ImVec4(0.471f, 0.471f, 0.471f, 1.000f);
 			colors[ImGuiCol_Tab] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
 			colors[ImGuiCol_TabHovered] = ImVec4(0.19f, 0.19f, 0.19f, 1.00f);
 			colors[ImGuiCol_TabActive] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
 			colors[ImGuiCol_TabUnfocused] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
-			colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+			colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.169f, 0.169f, 0.180f, 1.000f);
 			colors[ImGuiCol_DockingPreview] = ImVec4(0.19f, 0.53f, 0.78f, 0.22f);
 			colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
 			colors[ImGuiCol_PlotLines] = ImVec4(0.00f, 0.44f, 0.88f, 1.00f);
@@ -210,7 +210,7 @@ namespace QuickGit
 		printf("Checkout progress: %s - %zu/%zu\n", path, completed_steps, total_steps);
 	}
 
-	bool ImGuiInit()
+	bool ImGuiInit(const char** args, int count)
 	{
 		if (!glfwInit())
 			return false;
@@ -257,7 +257,7 @@ namespace QuickGit
 		style.AntiAliasedLines = true;
 		style.AntiAliasedLinesUseTex = true;
 		style.WindowPadding = ImVec2(4.0f, 4.0f);
-		style.FramePadding = ImVec2(12.0f, 4.0f);
+		style.FramePadding = ImVec2(4.0f, 4.0f);
 		style.TabMinWidthForCloseButton = 0.1f;
 		style.CellPadding = ImVec2(10.0f, 4.0f);
 		style.ItemSpacing = ImVec2(8.0f, 4.0f);
@@ -268,17 +268,16 @@ namespace QuickGit
 		style.GrabMinSize = 10;
 		style.WindowBorderSize = 1.0f;
 		style.ChildBorderSize = 0.0f;
-		style.PopupBorderSize = 1.5f;
+		style.PopupBorderSize = 2.0f;
 		style.FrameBorderSize = 1.0f;
-		style.TabBorderSize = 0.0f;
+		style.TabBorderSize = 1.0f;
 		style.WindowRounding = 6.0f;
 		style.ChildRounding = 0.0f;
-		style.FrameRounding = 2.0f;
-		style.PopupRounding = 2.0f;
-		style.ScrollbarRounding = 3.0f;
+		style.FrameRounding = 4.0f;
+		style.PopupRounding = 4.0f;
 		style.GrabRounding = 2.0f;
 		style.LogSliderDeadzone = 4.0f;
-		style.TabRounding = 3.0f;
+		style.TabRounding = 4.0f;
 		style.WindowTitleAlign = ImVec2(0.0f, 0.5f);
 		style.WindowMenuButtonPosition = ImGuiDir_None;
 		style.ColorButtonPosition = ImGuiDir_Left;
@@ -308,10 +307,8 @@ namespace QuickGit
 
 		memset(g_Path, 0, 2048);
 
-	#if 1
-		Client::InitRepo("G:/Projects/ArcEngine");
-		Client::InitRepo("G:/Projects/MohitSethi99.github.io");
-	#endif
+		for (int i = 0; i < count; ++i)
+			Client::InitRepo(args[i]);
 
 		return true;
 	}
@@ -511,6 +508,7 @@ namespace QuickGit
 			BranchCheckout,
 			BranchRename,
 			BranchReset,
+			BranchDelete,
 			CommitCheckout,
 		};
 
@@ -518,7 +516,7 @@ namespace QuickGit
 		static git_reference* selectedBranch = nullptr;
 		CommitData* selectedCommit = nullptr;
 
-		ImGui::Begin(repoData->Name.c_str(), opened);
+		ImGuiExt::Begin(repoData->Name.c_str(), opened);
 
 		if (ImGui::IsWindowFocused())
 			s_SelectedRepository = repoData;
@@ -578,6 +576,12 @@ namespace QuickGit
 			else
 				ImGui::TextUnformatted("Detached HEAD");
 
+			ImGui::SameLine();
+			if (ImGui::Button(reinterpret_cast<const char*>(ICON_MDI_REFRESH)))
+			{
+				Client::Fill(repoData, repoData->Repository);
+			}
+
 			const float cursorPosX = ImGui::GetCursorPosX();
 			CommitsFilter.Draw("##CommitsFilter", ImGui::GetContentRegionAvail().x);
 			if (!CommitsFilter.IsActive())
@@ -608,6 +612,10 @@ namespace QuickGit
 			ImGui::Unindent();
 			ImGui::Spacing();
 
+			ImVec2 cellPadding = ImGui::GetStyle().CellPadding;
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { cellPadding.x, cellPadding.y * 2.0f });
+			ImGui::PushStyleColor(ImGuiCol_Header, { 0.000f, 0.439f, 0.878f, 0.824f });
+			ImGui::PushStyleColor(ImGuiCol_HeaderActive, { 0.000f, 0.439f, 0.878f, 0.824f });
 			if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
 			{
 				ImGui::TableSetupColumn("Message", columnFlags);
@@ -618,21 +626,12 @@ namespace QuickGit
 				bool disabled = true;
 				uint32_t start = maxRows * currentPage;
 				uint32_t end = start + (currentPage == totalPages ? static_cast<uint32_t>(repoData->Commits.size()) % maxRows : maxRows);
-				int row = 0;
 				for (uint32_t i = start; i < end; ++i)
 				{
 					CommitData& data = repoData->Commits[i];
 
-					if (CommitsFilter.IsActive() && !(CommitsFilter.PassFilter(data.CommitID, data.CommitID + COMMIT_SHORT_ID_LEN - 1) || CommitsFilter.PassFilter(data.Message) || CommitsFilter.PassFilter(data.AuthorName)))
+					if (CommitsFilter.IsActive() && !(CommitsFilter.PassFilter(data.CommitID) || CommitsFilter.PassFilter(data.Message) || CommitsFilter.PassFilter(data.AuthorName)))
 						continue;
-
-					if (ImGui::IsWindowHovered() && ImGui::IsAnyMouseDown() && row == ImGui::TableGetHoveredRow())
-					{
-						s_SelectedRepository = repoData;
-						repoData->SelectedCommit = data.ID;
-					}
-
-					++row;
 
 					ImGui::TableNextRow();
 					ImGui::TableNextColumn();
@@ -645,6 +644,7 @@ namespace QuickGit
 							const bool isHeadBranch = branch == repoData->HeadBranch;
 							BranchData& branchData = repoData->Branches.at(branch);
 							const char* branchName = branchData.ShortName();
+
 							if (isHeadBranch)
 							{
 								ImGui::PushFont(g_BoldFont);
@@ -652,19 +652,41 @@ namespace QuickGit
 								size.x += lineHeightWithSpacing;
 								ImGuiExt::FramedText(size, branchData.Color, true, 2.0f, "%s%s", ICON_MDI_CHECK_ALL, branchName);
 								ImGui::PopFont();
+								ImGui::SameLine(0, ImGui::GetTextLineHeight());
 							}
 							else
 							{
 								ImGuiExt::FramedTextUnformatted({ 0, 0 }, branchData.Color, true, 2.0f, branchName);
+								ImGui::SameLine(0, lineHeightWithSpacing * 0.5f);
 							}
-							ImGui::SameLine(0, lineHeightWithSpacing);
 						}
 					}
 
 					const bool isHead = data.ID == repoData->Head;
 					if (repoData->SelectedCommit == 0 && isHead)
 						repoData->SelectedCommit = data.ID;
-					const bool selected = repoData->SelectedCommit != 0 && repoData->SelectedCommit == data.ID;
+					bool selected = repoData->SelectedCommit == data.ID;
+					ImGui::PushID(&data.ID);
+					if (ImGui::Selectable("##CommitSelectable", &selected, ImGuiSelectableFlags_SpanAllColumns))
+					{
+						s_SelectedRepository = repoData;
+						repoData->SelectedCommit = data.ID;
+					}
+
+					if (!selected && ImGui::IsItemHovered() && ImGui::IsMouseReleased(1))
+					{
+						selected = true;
+						s_SelectedRepository = repoData;
+						repoData->SelectedCommit = data.ID;
+					}
+
+					if (!selected && ImGui::IsItemFocused())
+					{
+						selected = true;
+						s_SelectedRepository = repoData;
+						repoData->SelectedCommit = data.ID;
+					}
+					ImGui::PopID();
 
 					if (disabled && isHead)
 						disabled = false;
@@ -672,12 +694,15 @@ namespace QuickGit
 					if (isHead)	ImGui::PushFont(g_BoldFont);
 					if (selected) ImGui::PushStyleColor(ImGuiCol_Text, { 0.9f, 0.9f, 0.9f, 1.0f });
 					ImGui::BeginDisabled(disabled);
-
-					ImGuiExt::TextEllipsis(data.Message, { 885, 0 });
+					
+					ImGui::SameLine();
+					float textSize = ImGui::CalcTextSize(data.Message).x;
+					textSize -= data.MessageSize == COMMIT_MSG_LEN - 1 ? 5.0f : 0.0f;
+					ImGuiExt::TextEllipsis(data.Message, { textSize, 0 });
 					ImGui::TableNextColumn();
 					ImGui::TextUnformatted(data.AuthorName);
 					ImGui::TableNextColumn();
-					ImGui::TextUnformatted(data.CommitID);
+					ImGui::TextUnformatted(data.CommitID, data.CommitID + COMMIT_SHORT_ID_LEN);
 					ImGui::TableNextColumn();
 					ImGui::TextUnformatted(data.AuthorDate, data.AuthorDate + strlen(data.AuthorDate) - 3);
 
@@ -687,8 +712,6 @@ namespace QuickGit
 
 					if (selected)
 					{
-						ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImColor(0.14f, 0.42f, 0.82f, 1.0f));
-
 						if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(1))
 							ImGui::OpenPopup("CommitPopup", ImGuiPopupFlags_NoOpenOverExistingPopup);
 						if (ImGui::BeginPopup("CommitPopup"))
@@ -718,8 +741,8 @@ namespace QuickGit
 											ImGui::BeginDisabled(repoData->HeadBranch == branch);
 											if (ImGui::MenuItem("Delete"))
 											{
-												if (!Client::BranchDelete(repoData, branch))
-													error = git_error_last()->message;
+												action = Action::BranchDelete;
+												selectedBranch = branch;
 											}
 											ImGui::EndDisabled();
 										}
@@ -788,15 +811,14 @@ namespace QuickGit
 							ImGui::Separator();
 							if (ImGui::MenuItem("Copy Commit SHA"))
 							{
-								const git_oid* oid = git_commit_id(data.Commit);
-								ImGui::SetClipboardText(git_oid_tostr_s(oid));
+								ImGui::SetClipboardText(data.CommitID);
 							}
 							if (ImGui::MenuItem("Copy Commit Info"))
 							{
 								Commit c;
 								GetCommit(data.Commit, &c);
 								char shortSHA[8];
-								strncpy_s(shortSHA, c.CommitID, COMMIT_SHORT_ID_LEN - 1);
+								strncpy_s(shortSHA, c.CommitID, COMMIT_SHORT_ID_LEN);
 								eastl::string info = "SHA: ";
 								info += shortSHA;
 								info += "\nAuthor: ";
@@ -819,6 +841,8 @@ namespace QuickGit
 
 				ImGui::EndTable();
 			}
+			ImGui::PopStyleColor(2);
+			ImGui::PopStyleVar();
 
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
 
@@ -840,12 +864,21 @@ namespace QuickGit
 				{
 					Client::UpdateHead(*repoData);
 				}
+				if (action == Action::BranchDelete)
+				{
+					ImGui::OpenPopup("Delete Branch");
+				}
 				if (action == Action::CommitCheckout)
 				{
 					ImGui::OpenPopup("Checkout Commit");
 				}
 
-				if (ImGuiExt::BeginPopupModal("Create Branch"))
+				float commitMessageTextSize = ImGui::CalcTextSize(selectedCommit->Message).x;
+				if (selectedCommit->MessageSize == COMMIT_MSG_LEN - 1)
+					commitMessageTextSize -= 20.0f;
+				commitMessageTextSize = eastl::max(commitMessageTextSize, 700.0f);
+
+				if (ImGuiExt::BeginPopupModal("Create Branch", { 270.0f + commitMessageTextSize, 0.0f }))
 				{
 					ImGui::TextDisabled("Use '/' as a path separator to create folders");
 
@@ -859,7 +892,7 @@ namespace QuickGit
 
 						ImGui::TextUnformatted("Create Branch at:");
 						ImGui::TableNextColumn();
-						ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, selectedCommit->CommitID);
+						ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, COMMIT_SHORT_ID_LEN, selectedCommit->CommitID);
 						ImGui::SameLine();
 						ImGuiExt::TextEllipsis(selectedCommit->Message);
 
@@ -883,6 +916,8 @@ namespace QuickGit
 						ImGui::TableNextColumn();
 						ImGui::TableNextColumn();
 
+						ImGui::Spacing();
+						ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Create Cancel").x - lineHeightWithSpacing);
 						ImGui::BeginDisabled(branchName[0] == 0);
 						if (ImGui::Button("Create"))
 						{
@@ -929,6 +964,8 @@ namespace QuickGit
 					ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
 					ImGui::InputTextWithHint("##NewBranchName", "Enter new branch name", branchName, 256, ImGuiInputTextFlags_CallbackCharFilter, BranchNameFilterTextCallback);
 
+					ImGui::Spacing();
+					ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Rename Cancel").x);
 					ImGui::BeginDisabled(branchName[0] == 0);
 					if (ImGui::Button("Rename"))
 					{
@@ -957,21 +994,45 @@ namespace QuickGit
 					ImGuiExt::EndPopupModal();
 				}
 
-				if (ImGuiExt::BeginPopupModal("Checkout Commit"))
+				if (ImGuiExt::BeginPopupModal("Delete Branch"))
+				{
+					ImGui::TextUnformatted("Delete branch from your repository");
+					ImGui::Spacing();
+
+					ImGui::Text("Branch: %s %s", ICON_MDI_SOURCE_BRANCH, repoData->Branches.at(selectedBranch).ShortName());
+
+					ImGui::Spacing();
+					ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Delete Cancel").x);
+					if (ImGui::Button("Delete"))
+					{
+						if (!Client::BranchDelete(repoData, selectedBranch))
+							error = git_error_last()->message;
+
+						selectedBranch = nullptr;
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel"))
+					{
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGuiExt::EndPopupModal();
+				}
+
+				if (ImGuiExt::BeginPopupModal("Checkout Commit", { 270.0f + commitMessageTextSize, 0.0f }))
 				{
 					ImGui::TextUnformatted("Checkout a particular revision. Repository will be in detached HEAD state.");
-
-					const float lineHeight = ImGui::GetTextLineHeight();
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
+					ImGui::Spacing();
 
 					ImGui::TextUnformatted("Commit to checkout:");
 					ImGui::SameLine();
-					ImGui::Text("%s %s", ICON_MDI_SOURCE_COMMIT, selectedCommit->CommitID);
+					ImGui::Text("%s %.*s", ICON_MDI_SOURCE_COMMIT, COMMIT_SHORT_ID_LEN, selectedCommit->CommitID);
 					ImGui::SameLine();
 					ImGuiExt::TextEllipsis(selectedCommit->Message);
 
-					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + lineHeight);
-
+					ImGui::Spacing();
+					ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Checkout Commit Cancel").x);
 					if (ImGui::Button("Checkout Commit"))
 					{
 						if (!Client::CommitCheckout(selectedCommit->Commit, false))
@@ -1028,34 +1089,86 @@ namespace QuickGit
 			ImGui::EndTable();
 		}
 
-		ImGui::End();
+		ImGuiExt::End();
 	}
 
 	void ImGuiRender()
 	{
+		constexpr ImGuiWindowFlags sideBarFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoNavFocus;
+		
+		const float frameHeight = ImGui::GetFrameHeight();
+		const float frameHeightWithSpacing = ImGui::GetFrameHeightWithSpacing();
+		const ImVec2 windowPadding = ImGui::GetStyle().WindowPadding;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0.0f, 0.0f });
+		if (ImGui::BeginViewportSideBar("##PrimaryMenuBar", ImGui::GetMainViewport(), ImGuiDir_Up, frameHeight, sideBarFlags))
+		{
+			if (ImGui::BeginMenuBar())
+			{
+				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, windowPadding);
+
+				if (ImGui::BeginMenu("File"))
+				{
+					if (ImGui::MenuItem("Open Repository", "Ctrl+O"))
+					{
+					}
+					if (ImGui::MenuItem("Preferences", "Ctrl+,"))
+					{
+					}
+					if (ImGui::MenuItem("Exit"))
+					{
+					}
+
+					ImGui::EndMenu();
+				}
+				if (ImGui::BeginMenu("Edit"))
+				{
+					ImGui::EndMenu();
+				}
+
+				ImGui::PopStyleVar();
+				ImGui::EndMenuBar();
+			}
+			ImGui::End();
+		}
+		if (ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down, frameHeight, sideBarFlags))
+		{
+			if (ImGui::BeginMenuBar())
+			{
+				constexpr float updateTime = 0.1f;
+				static float accum = 0.0f;
+				static float dt = 0.0f;
+				static double mem = 0.0f;
+				if (accum >= 0.0f)
+				{
+					dt = ImGui::GetIO().DeltaTime;
+					mem = static_cast<double>(QuickGit::Allocation::GetSize()) / (1024.0 * 1024.0);
+					accum = -updateTime;
+				}
+
+				accum += dt;
+				ImGui::Text("FPS: %.2lf (%.3lfms)  MEM: %.2lfMB", 1.0f / dt, dt, mem);
+
+				ImGui::EndMenuBar();
+			}
+			ImGui::End();
+		}
+		ImGui::PopStyleVar(2);
+
 		ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-		ImGui::Begin("Add Repo");
+		ImGuiExt::Begin("Add Repo\t\t");
 		ImGui::InputText("Path", g_Path, 2048);
 		if (ImGui::Button("Open"))
 		{
 			Client::InitRepo(g_Path);
+			memset(g_Path, 0, sizeof(g_Path));
 		}
-		ImGui::End();
+		ImGuiExt::End();
 
 
-
-
-
-		ImGui::Begin("Repositories");
 		eastl::vector<eastl::unique_ptr<RepoData>>& repos = Client::GetRepositories();
-		for (const eastl::unique_ptr<RepoData>& repo : repos)
-		{
-			bool open = ImGui::TreeNodeEx(repo->Filepath.c_str(), ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Leaf);
-			if (open) ImGui::TreePop();
-		}
-		ImGui::End();
-
 		for (eastl::vector<eastl::unique_ptr<RepoData>>::iterator it = repos.begin(); it != repos.end(); ++it)
 		{
 			RepoData* repoData = it->get();
@@ -1071,13 +1184,6 @@ namespace QuickGit
 			}
 		}
 
-
-
-
-
-		float frameHeight = ImGui::GetFrameHeight();
-		float frameHeightWithSpacing = ImGui::GetFrameHeightWithSpacing();
-
 		CommitData* selectedCommit = nullptr;
 		if (s_SelectedRepository && s_SelectedRepository->SelectedCommit)
 		{
@@ -1088,7 +1194,7 @@ namespace QuickGit
 			}
 		}
 
-		ImGui::Begin("Commit");
+		ImGuiExt::Begin("Commit\t\t");
 		{
 			ImGui::Indent();
 			static Commit cd;
@@ -1179,16 +1285,6 @@ namespace QuickGit
 				ImGui::Spacing();
 				for (auto& diff : diffs.Patches)
 				{
-				#if 0
-					std::filesystem::path filepath = diff.File;
-
-					uint32_t count = 0;
-					for ([[maybe_unused]] const auto& entry : filepath)
-						count++;
-					static int selection_mask = 0;
-					auto clickState = DirectoryTreeViewRecursive(filepath, &count, &selection_mask);
-				#endif
-
 					ImGui::PushStyleColor(ImGuiCol_Text, GetPatchStatusColor(diff.Status));
 					bool open = ImGui::TreeNodeEx(diff.File.c_str(), ImGuiTreeNodeFlags_SpanAvailWidth);
 					ImGui::PopStyleColor();
@@ -1229,9 +1325,9 @@ namespace QuickGit
 			}
 			ImGui::Unindent();
 		}
-		ImGui::End();
+		ImGuiExt::End();
 
-		ImGui::Begin("Local Changes");
+		ImGuiExt::Begin("Local Changes\t\t");
 		{
 			ImGui::Indent();
 
@@ -1341,6 +1437,7 @@ namespace QuickGit
 
 				ImVec2 descriptionInputBoxSize = ImGui::GetContentRegionAvail();
 				descriptionInputBoxSize.y -= frameHeightWithSpacing;
+				descriptionInputBoxSize.y = eastl::max(descriptionInputBoxSize.y, frameHeightWithSpacing);
 				ImGui::InputTextMultiline("##CommitDescription", desc, 2048, descriptionInputBoxSize);
 				ImGui::BeginDisabled(staged.Patches.empty() || subject[0] == 0);
 				eastl::string commitLabel = (staged.Patches.empty() ? "Commit" : std::format("Commit {} File(s)", staged.Patches.size()).c_str());
@@ -1365,31 +1462,8 @@ namespace QuickGit
 			
 			ImGui::Unindent();
 		}
-		ImGui::End();
+		ImGuiExt::End();
 
-		if (ImGui::BeginViewportSideBar("##StatusBar", ImGui::GetMainViewport(), ImGuiDir_Down, frameHeight, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoNavFocus))
-		{
-			if (ImGui::BeginMenuBar())
-			{
-				constexpr float updateTime = 0.1f;
-				static float accum = 0.0f;
-				static float dt = 0.0f;
-				static double mem = 0.0f;
-				if (accum >= 0.0f)
-				{
-					dt = ImGui::GetIO().DeltaTime;
-					mem = static_cast<double>(QuickGit::Allocation::GetSize()) / (1024.0 * 1024.0);
-					accum = -updateTime;
-				}
-
-				accum += dt;
-				ImGui::Text("FPS: %.2lf (%.3lfms)  MEM: %.2lfMB", 1.0f / dt, dt, mem);
-
-				ImGui::EndMenuBar();
-			}
-			ImGui::End();
-		}
-		
 		static bool show_demo_window = true;
 		if (show_demo_window)
 			ImGui::ShowDemoWindow(&show_demo_window);

@@ -70,6 +70,39 @@ namespace QuickGit
 		}
 	}
 
+	void FillCommit(git_commit* commit, CommitData* outCommitData)
+	{
+		const git_signature* author = git_commit_author(commit);
+		const char* commitSummary = git_commit_summary(commit);
+		const git_oid* oid = git_commit_id(commit);
+		const char* strId = git_oid_tostr_s(oid);
+		const UUID id = Utils::GenUUID(oid);
+
+		outCommitData->Commit = commit;
+		outCommitData->CommitTime = author->when.time;
+		outCommitData->ID = id;
+
+		strncpy_s(outCommitData->CommitID, strId, sizeof(outCommitData->CommitID) - 1);
+
+		if (commitSummary)
+		{
+			strncpy_s(outCommitData->Message, commitSummary, sizeof(outCommitData->Message) - 1);
+			outCommitData->MessageSize = strlen(outCommitData->Message);
+		}
+		else
+		{
+			outCommitData->Message[0] = 0;
+			outCommitData->MessageSize = 0;
+		}
+
+		strncpy_s(outCommitData->AuthorName, author->name, sizeof(outCommitData->AuthorName) - 1);
+
+		git_time_t timestamp = author->when.time;
+		tm localTime;
+		localtime_s(&localTime, &timestamp);
+		strftime(outCommitData->AuthorDate, sizeof(outCommitData->AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
+	}
+
 	void Client::Fill(RepoData* data, git_repository* repo)
 	{
 		if (!data || !repo)
@@ -144,29 +177,8 @@ namespace QuickGit
 					git_commit* commit = nullptr;
 					if (git_commit_lookup(&commit, repo, &oid) == 0)
 					{
-						const git_signature* author = git_commit_author(commit);
-						const char* commitSummary = git_commit_summary(commit);
-						const UUID id = Utils::GenUUID(idStr.c_str());
-
 						CommitData cd;
-						cd.Commit = commit;
-						cd.CommitTime = author->when.time;
-						cd.ID = id;
-
-						strncpy_s(cd.CommitID, idStr.c_str(), sizeof(cd.CommitID) - 1);
-
-						if (commitSummary)
-							strncpy_s(cd.Message, commitSummary, sizeof(cd.Message) - 1);
-						else
-							memset(cd.Message, 0, sizeof(cd.Message));
-
-						strncpy_s(cd.AuthorName, author->name, sizeof(cd.AuthorName) - 1);
-
-						git_time_t timestamp = author->when.time;
-						tm localTime;
-						localtime_s(&localTime, &timestamp);
-						strftime(cd.AuthorDate, sizeof(cd.AuthorDate), "%d %b %Y %H:%M:%S", &localTime);
-
+						FillCommit(commit, &cd);
 						data->Commits.emplace_back(eastl::move(cd));
 					}
 				}
@@ -583,15 +595,15 @@ namespace QuickGit
 		return err == 0;
 	}
 
-	bool Client::Commit(git_repository* repo, const char* summary, const char* description)
+	bool Client::Commit(RepoData* repo, const char* summary, const char* description)
 	{
 		git_reference* ref = nullptr;
 		git_object* parent = nullptr;
-		int err = git_revparse_ext(&parent, &ref, repo, "HEAD");
+		int err = git_revparse_ext(&parent, &ref, repo->Repository, "HEAD");
 
 		git_index* index = nullptr;
 		if (err == 0)
-			err = git_repository_index(&index, repo);
+			err = git_repository_index(&index, repo->Repository);
 
 		git_oid treeId;
 		if (err == 0)
@@ -602,11 +614,11 @@ namespace QuickGit
 
 		git_tree* tree = nullptr;
 		if (err == 0)
-			err = git_tree_lookup(&tree, repo, &treeId);
+			err = git_tree_lookup(&tree, repo->Repository, &treeId);
 
 		git_signature* signature = nullptr;
 		if (err == 0)
-			err = git_signature_default(&signature, repo);
+			err = git_signature_default(&signature, repo->Repository);
 
 		git_oid commitId;
 		if (err == 0)
@@ -614,7 +626,26 @@ namespace QuickGit
 			eastl::string message = summary;
 			message += "\n\n";
 			message += description;
-			err = git_commit_create_v(&commitId, repo,  "HEAD", signature, signature, nullptr, message.c_str(), tree, parent ? 1 : 0, parent);
+			err = git_commit_create_v(&commitId, repo->Repository,  "HEAD", signature, signature, nullptr, message.c_str(), tree, parent ? 1 : 0, parent);
+		}
+
+		if (err == 0)
+		{
+			git_commit* commit = nullptr;
+			if (git_commit_lookup(&commit, repo->Repository, &commitId) == 0)
+			{
+				CommitData cd;
+				FillCommit(commit, &cd);
+				UUID cdId = cd.ID;
+				repo->Commits.emplace(repo->Commits.begin(), eastl::move(cd));
+
+				for (auto& [id, idx] : repo->CommitsIndexMap)
+					++idx;
+
+				repo->CommitsIndexMap[cdId] = 0;
+
+				UpdateHead(*repo);
+			}
 		}
 
 		git_index_free(index);

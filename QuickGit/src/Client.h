@@ -112,6 +112,6 @@ namespace QuickGit
 
 		static bool AddToIndex(git_repository* repo, const char* filepath);
 		static bool RemoveFromIndex(git_repository* repo, const char* filepath);
-		static bool Commit(git_repository* repo, const char* summary, const char* description);
+		static bool Commit(RepoData* repo, const char* summary, const char* description);
 	};
 }

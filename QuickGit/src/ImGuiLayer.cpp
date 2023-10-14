@@ -1443,7 +1443,7 @@ namespace QuickGit
 				eastl::string commitLabel = (staged.Patches.empty() ? "Commit" : std::format("Commit {} File(s)", staged.Patches.size()).c_str());
 				if (ImGui::Button(commitLabel.c_str()))
 				{
-					bool success = Client::Commit(git_commit_owner(head), subject, desc);
+					bool success = Client::Commit(s_SelectedRepository, subject, desc);
 
 					if (success)
 					{

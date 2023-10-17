@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "Client.h"
 
-#include "Timer.h"
-
 namespace QuickGit
 {
 	static eastl::vector<eastl::unique_ptr<RepoData>> s_Repositories;
@@ -193,8 +191,6 @@ namespace QuickGit
 
 	git_reference* Client::BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName)
 	{
-		Stopwatch sw("CreateBranch");
-
 		int valid = 0;
 		int err = git_branch_name_is_valid(&valid, branchName);
 		outValidName = valid;
@@ -291,8 +287,6 @@ namespace QuickGit
 
 	bool Client::BranchCheckout(git_reference* branch, bool force /*= false*/)
 	{
-		Stopwatch sw("CheckoutBranch");
-
 		git_repository* repo = git_reference_owner(branch);
 		git_commit* commit;
 		int err = git_commit_lookup(&commit, repo, git_reference_target(branch));
@@ -319,8 +313,6 @@ namespace QuickGit
 
 	bool Client::BranchReset(RepoData* repo, git_commit* commit, git_reset_t resetType)
 	{
-		Stopwatch sw("Reset");
-
 		const int err = git_reset(repo->Repository, reinterpret_cast<const git_object*>(commit), resetType, resetType == GIT_RESET_HARD ? &s_ForceCheckoutOptions : &s_SafeCheckoutOptions);
 		git_reference* newHead;
 		git_repository_head(&newHead, repo->Repository);
@@ -356,8 +348,6 @@ namespace QuickGit
 
 	bool Client::CommitCheckout(git_commit* commit, bool force)
 	{
-		Stopwatch sw("CheckoutCommit");
-
 		git_repository* repo = git_commit_owner(commit);
 		int err = git_checkout_tree(repo, reinterpret_cast<git_object*>(commit), force ? &s_ForceCheckoutOptions : &s_SafeCheckoutOptions);
 		if (err == 0)
@@ -367,8 +357,6 @@ namespace QuickGit
 
 	void Client::FillDiff(git_diff* diff, Diff& out)
 	{
-		Stopwatch sw("FillDiff");
-
 		size_t diffDeltas = git_diff_num_deltas(diff);
 		for (size_t i = 0; i < diffDeltas; ++i)
 		{
@@ -416,8 +404,6 @@ namespace QuickGit
 
 	bool Client::GenerateDiff(git_commit* oldCommit, git_commit* newCommit, Diff& out, uint32_t contextLines)
 	{
-		Stopwatch sw("GenerateDiff");
-
 		git_diff* diff = nullptr;
 		git_tree* oldCommitTree = nullptr;
 		git_tree* newCommitTree = nullptr;
@@ -468,8 +454,6 @@ namespace QuickGit
 
 	bool Client::GenerateDiffWithWorkDir(git_commit* commit, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines)
 	{
-		Stopwatch sw("GenerateDiff");
-
 		git_diff* unstagedDiff = nullptr;
 		git_diff* stagedDiff = nullptr;
 		git_tree* commitTree = nullptr;

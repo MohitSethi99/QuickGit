@@ -13,7 +13,6 @@
 #include <icons/IconsMaterialDesignIcons.h>
 #include <icons/MaterialDesign.inl>
 
-#include "Timer.h"
 #include "Client.h"
 
 #include "ImGuiExt.h"

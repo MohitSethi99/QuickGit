@@ -83,6 +83,8 @@ namespace QuickGit
 			fontConfig->RasterizerMultiply = 1.0f;
 		}
 		io.Fonts->Build();
+
+		ImGui::GetStyle().ScaleAllSizes(1.0f);
 	}
 
 	void SetTheme(bool dark)
@@ -628,6 +630,7 @@ namespace QuickGit
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { cellPadding.x, cellPadding.y * 2.0f });
 			ImGui::PushStyleColor(ImGuiCol_Header, { 0.000f, 0.439f, 0.878f, 0.824f });
 			ImGui::PushStyleColor(ImGuiCol_HeaderActive, { 0.000f, 0.439f, 0.878f, 0.824f });
+			ImGui::PushStyleColor(ImGuiCol_HeaderHovered, { 0.000f, 0.539f, 0.900f, 0.824f });
 			if (ImGui::BeginTable(repoData->Name.c_str(), 4, tableFlags))
 			{
 				ImGui::TableSetupColumn("Message", columnFlags);
@@ -679,20 +682,13 @@ namespace QuickGit
 						repoData->SelectedCommit = data.ID;
 					bool selected = repoData->SelectedCommit == data.ID;
 					ImGui::PushID(&data.ID);
-					if (ImGui::Selectable("##CommitSelectable", &selected, ImGuiSelectableFlags_SpanAllColumns))
+					if (ImGui::Selectable("##CommitSelectable", &selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap))
 					{
 						s_SelectedRepository = repoData;
 						repoData->SelectedCommit = data.ID;
 					}
 
 					if (!selected && ImGui::IsItemHovered() && ImGui::IsMouseReleased(1))
-					{
-						selected = true;
-						s_SelectedRepository = repoData;
-						repoData->SelectedCommit = data.ID;
-					}
-
-					if (!selected && ImGui::IsItemFocused())
 					{
 						selected = true;
 						s_SelectedRepository = repoData;
@@ -860,7 +856,7 @@ namespace QuickGit
 
 				ImGui::EndTable();
 			}
-			ImGui::PopStyleColor(2);
+			ImGui::PopStyleColor(3);
 			ImGui::PopStyleVar();
 
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });

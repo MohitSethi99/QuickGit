@@ -8,17 +8,17 @@ namespace QuickGit
 	static git_checkout_options s_SafeCheckoutOptions;
 	static git_checkout_options s_ForceCheckoutOptions;
 
-	void Client::Init()
+	void Client::Init(const git_checkout_progress_cb checkoutProgress /*= nullptr*/)
 	{
 		git_libgit2_init();
 		s_Repositories.reserve(10);
 
 		s_SafeCheckoutOptions = { GIT_CHECKOUT_OPTIONS_VERSION, GIT_CHECKOUT_SAFE | GIT_CHECKOUT_UPDATE_SUBMODULES };
 		s_ForceCheckoutOptions = { GIT_CHECKOUT_OPTIONS_VERSION, GIT_CHECKOUT_FORCE | GIT_CHECKOUT_UPDATE_SUBMODULES };
-		//s_SafeCheckoutOptions.progress_cb = checkout_progress;
+		s_SafeCheckoutOptions.progress_cb = checkoutProgress;
 		s_SafeCheckoutOptions.dir_mode = 0777;
 		s_SafeCheckoutOptions.file_mode = 0777;
-		//s_ForceCheckoutOptions.progress_cb = checkout_progress;
+		s_ForceCheckoutOptions.progress_cb = checkoutProgress;
 		s_ForceCheckoutOptions.dir_mode = 0777;
 		s_ForceCheckoutOptions.file_mode = 0777;
 	}

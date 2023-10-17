@@ -87,7 +87,7 @@ namespace QuickGit
 	class Client
 	{
 	public:
-		static void Init();
+		static void Init(const git_checkout_progress_cb checkoutProgress = nullptr);
 		static void Shutdown();
 
 		static bool InitRepo(const eastl::string_view& path);

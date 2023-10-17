@@ -22,6 +22,7 @@ namespace QuickGit
 	GLFWwindow* g_Window;
 	char g_Path[2048];
 	static RepoData* s_SelectedRepository = nullptr;
+	static eastl::vector<eastl::string> s_Logs{};
 
 	ImFont* g_DefaultFont = nullptr;
 	ImFont* g_SmallFont = nullptr;
@@ -204,9 +205,10 @@ namespace QuickGit
 	}
 
 	// Define a progress callback function
-	void checkout_progress(const char* path, size_t completed_steps, size_t total_steps, [[maybe_unused]] void* payload)
+	void checkout_progress(const char* path, size_t completedSteps, size_t totalSteps, [[maybe_unused]] void* payload)
 	{
-		printf("Checkout progress: %s - %zu/%zu\n", path, completed_steps, total_steps);
+		if (path)
+			s_Logs.push_back(std::format("\tCheckout progress: {} - {}/{}", path, completedSteps, totalSteps).c_str());
 	}
 
 	bool ImGuiInit(const char** args, int count)
@@ -303,7 +305,7 @@ namespace QuickGit
 		ImGui_ImplGlfw_InitForOpenGL(g_Window, true);
 		ImGui_ImplOpenGL3_Init(glsl_version);
 
-		Client::Init();
+		Client::Init(checkout_progress);
 
 		memset(g_Path, 0, 2048);
 
@@ -1464,6 +1466,12 @@ namespace QuickGit
 		}
 		ImGuiExt::End();
 
+		ImGuiExt::Begin("Log\t\t");
+		{
+			for (auto& l : s_Logs)
+				ImGui::TextWrapped("%s", l.c_str());
+		}
+		ImGuiExt::End();
 		static bool show_demo_window = true;
 		if (show_demo_window)
 			ImGui::ShowDemoWindow(&show_demo_window);

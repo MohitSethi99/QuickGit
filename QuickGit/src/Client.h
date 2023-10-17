@@ -96,10 +96,10 @@ namespace QuickGit
 		static void UpdateHead(RepoData& repoData);
 		static void Fill(RepoData* data, git_repository* repo);
 		static void FillDiff(git_diff* diff, Diff& out);
-		static bool GenerateDiff(git_commit* commit, Diff& out, uint32_t contextLines = 0);
-		static bool GenerateDiff(git_commit* oldCommit, git_commit* newCommit, Diff& out, uint32_t contextLines = 0);
-		static bool GenerateDiffWithWorkDir(git_commit* commit, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 0);
-		static bool GenerateDiffWithWorkDir(git_repository* repo, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 0);
+		static bool GenerateDiff(git_commit* commit, Diff& out, uint32_t contextLines = 3);
+		static bool GenerateDiff(git_commit* oldCommit, git_commit* newCommit, Diff& out, uint32_t contextLines = 3);
+		static bool GenerateDiffWithWorkDir(git_commit* commit, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 3);
+		static bool GenerateDiffWithWorkDir(git_repository* repo, Diff& outUnstaged, Diff& outStaged, uint32_t contextLines = 3);
 
 		static git_reference* BranchCreate(RepoData* repo, const char* branchName, git_commit* commit, bool& outValidName);
 		static bool BranchRename(RepoData* repo, git_reference* branch, const char* name, bool& outValidName);

@@ -219,10 +219,11 @@ namespace QuickGit
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		g_Window = glfwCreateWindow(1280, 720, "QuickGit", nullptr, nullptr);
+		g_Window = glfwCreateWindow(1280, 720, "Quick Git", nullptr, nullptr);
 		if (g_Window == nullptr)
 			return false;
-
+		
+		glfwMaximizeWindow(g_Window);
 		glfwMakeContextCurrent(g_Window);
 		glfwSwapInterval(1);
 

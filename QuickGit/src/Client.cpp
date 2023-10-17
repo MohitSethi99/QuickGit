@@ -79,7 +79,6 @@ namespace QuickGit
 		const UUID id = Utils::GenUUID(oid);
 
 		outCommitData->Commit = commit;
-		outCommitData->CommitTime = author->when.time;
 		outCommitData->ID = id;
 
 		strncpy_s(outCommitData->CommitID, strId, sizeof(outCommitData->CommitID) - 1);
@@ -141,7 +140,6 @@ namespace QuickGit
 		git_reference_iterator* refIt = nullptr;
 		git_reference* ref = nullptr;
 		git_reference_iterator_new(&refIt, repo);
-		eastl::hash_set<eastl::string> uniqueCommits;
 		while (git_reference_next(&ref, refIt) == 0)
 		{
 			git_reference_t refType = git_reference_type(ref);
@@ -160,30 +158,6 @@ namespace QuickGit
 					data->Branches[ref] = eastl::move(branchData);
 					data->BranchHeads[Utils::GenUUID(targetCommit)].push_back(ref);
 				}
-
-				git_revwalk* walker;
-				git_revwalk_new(&walker, repo);
-				git_revwalk_push(walker, git_commit_id(targetCommit));
-
-				git_oid oid;
-				while (git_revwalk_next(&oid, walker) == 0)
-				{
-					eastl::string idStr = git_oid_tostr_s(&oid);
-					if (uniqueCommits.find(idStr) != uniqueCommits.end())
-						continue;
-
-					uniqueCommits.emplace(idStr);
-
-					git_commit* commit = nullptr;
-					if (git_commit_lookup(&commit, repo, &oid) == 0)
-					{
-						CommitData cd;
-						FillCommit(commit, &cd);
-						data->Commits.emplace_back(eastl::move(cd));
-					}
-				}
-
-				git_revwalk_free(walker);
 				git_commit_free(targetCommit);
 			}
 			else
@@ -193,15 +167,26 @@ namespace QuickGit
 		}
 		git_reference_iterator_free(refIt);
 
-		eastl::sort(data->Commits.begin(), data->Commits.end(), [](const CommitData& lhs, const CommitData& rhs)
-		{
-			return lhs.CommitTime > rhs.CommitTime;
-		});
+		git_revwalk* walker;
+		git_revwalk_new(&walker, repo);
+		git_revwalk_push_glob(walker, "refs/heads");
+		git_revwalk_push_glob(walker, "refs/remotes");
+		git_revwalk_sorting(walker, GIT_SORT_TIME | GIT_SORT_TOPOLOGICAL);
 
-		for (size_t i = 0, sz = data->Commits.size(); i < sz; ++i)
+		git_oid oid;
+		while (git_revwalk_next(&oid, walker) == 0)
 		{
-			data->CommitsIndexMap.emplace(data->Commits[i].ID, i);
+			git_commit* commit = nullptr;
+			if (git_commit_lookup(&commit, repo, &oid) == 0)
+			{
+				CommitData cd;
+				FillCommit(commit, &cd);
+				UUID id = cd.ID;
+				data->CommitsIndexMap.emplace(id, data->Commits.size());
+				data->Commits.emplace_back(eastl::move(cd));
+			}
 		}
+		git_revwalk_free(walker);
 
 		UpdateHead(*data);
 	}

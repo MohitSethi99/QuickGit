@@ -24,7 +24,6 @@ namespace QuickGit
 
 		size_t MessageSize = 0;
 		git_commit* Commit = nullptr;
-		git_time_t CommitTime = 0;
 		UUID ID = 0;
 	};
 

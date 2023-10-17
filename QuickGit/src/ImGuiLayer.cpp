@@ -9,6 +9,7 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <git2/sys/errors.h>
 
 #include <icons/IconsMaterialDesignIcons.h>
 #include <icons/MaterialDesign.inl>
@@ -23,6 +24,7 @@ namespace QuickGit
 	char g_Path[2048];
 	static RepoData* s_SelectedRepository = nullptr;
 	static eastl::vector<eastl::string> s_Logs{};
+	static eastl::stack<eastl::string> s_GitErrors;
 
 	ImFont* g_DefaultFont = nullptr;
 	ImFont* g_SmallFont = nullptr;
@@ -201,6 +203,15 @@ namespace QuickGit
 			colors[ImGuiCol_NavWindowingHighlight] = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
 			colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.20f);
 			colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
+		}
+	}
+
+	void RegisterLastGitError()
+	{
+		if (const git_error* err = git_error_last())
+		{
+			s_GitErrors.push(err->message);
+			QG_LOG_ERROR("[GIT ERROR]: {}", err->message);
 		}
 	}
 
@@ -601,7 +612,6 @@ namespace QuickGit
 				ImGuiTableFlags_NoHostExtendY |
 				ImGuiTableFlags_ScrollY;
 
-			static char* error = nullptr;
 			const float lineHeightWithSpacing = ImGui::GetTextLineHeightWithSpacing();
 
 			constexpr uint32_t maxRows = 25000;
@@ -731,8 +741,10 @@ namespace QuickGit
 											if (ImGui::MenuItem("Checkout"))
 											{
 												action = Action::BranchCheckout;
+												s_Logs.push_back(std::format("Checkout Branch: {}", branchData.ShortName()).c_str());
+
 												if (!Client::BranchCheckout(branch))
-													error = git_error_last()->message;
+													RegisterLastGitError();
 											}
 											ImGui::Separator();
 											if (ImGui::MenuItem("Rename"))
@@ -773,21 +785,21 @@ namespace QuickGit
 									if (ImGui::MenuItem("Soft (Move the head to the given commit)"))
 									{
 										if (!Client::BranchReset(repoData, data.Commit, GIT_RESET_SOFT))
-											error = git_error_last()->message;
+											RegisterLastGitError();
 
 										action = Action::BranchReset;
 									}
 									if (ImGui::MenuItem("Mixed (Soft + reset index to the commit)"))
 									{
 										if (!Client::BranchReset(repoData, data.Commit, GIT_RESET_MIXED))
-											error = git_error_last()->message;
+											RegisterLastGitError();
 
 										action = Action::BranchReset;
 									}
 									if (ImGui::MenuItem("Hard (Mixed + changes in working tree discarded)"))
 									{
 										if (!Client::BranchReset(repoData, data.Commit, GIT_RESET_HARD))
-											error = git_error_last()->message;
+											RegisterLastGitError();
 
 										action = Action::BranchReset;
 									}
@@ -807,7 +819,7 @@ namespace QuickGit
 								if (Client::CreatePatch(data.Commit, patch))
 									ImGui::SetClipboardText(patch.c_str());
 								else
-									error = git_error_last()->message;
+									RegisterLastGitError();
 							}
 
 							ImGui::Separator();
@@ -834,6 +846,11 @@ namespace QuickGit
 								info += "\n";
 								info += c.Description;
 								ImGui::SetClipboardText(info.c_str());
+							}
+							if (ImGui::MenuItem("Simulate Error"))
+							{
+								git_error_set(GIT_ERROR_NONE, "Simulated Error: %s", data.Message);
+								RegisterLastGitError();
 							}
 
 							ImGui::EndPopup();
@@ -930,9 +947,9 @@ namespace QuickGit
 								success = Client::BranchCheckout(branch);
 
 							if (!validName)
-								error = invalidNameError;
+								s_GitErrors.push(invalidNameError);
 							else if (!success)
-								error = git_error_last()->message;
+								RegisterLastGitError();
 
 							Client::UpdateHead(*repoData);
 
@@ -975,9 +992,9 @@ namespace QuickGit
 						if (!Client::BranchRename(repoData, selectedBranch, branchName, validName))
 						{
 							if (validName)
-								error = git_error_last()->message;
+								RegisterLastGitError();
 							else
-								error = invalidNameError;
+								s_GitErrors.push(invalidNameError);
 						}
 
 						selectedBranch = nullptr;
@@ -1008,7 +1025,7 @@ namespace QuickGit
 					if (ImGui::Button("Delete"))
 					{
 						if (!Client::BranchDelete(repoData, selectedBranch))
-							error = git_error_last()->message;
+							RegisterLastGitError();
 
 						selectedBranch = nullptr;
 						ImGui::CloseCurrentPopup();
@@ -1037,8 +1054,10 @@ namespace QuickGit
 					ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Checkout Commit Cancel").x);
 					if (ImGui::Button("Checkout Commit"))
 					{
+						s_Logs.push_back(std::format("Checkout Commit: {} {}", selectedCommit->CommitID, selectedCommit->Message).c_str());
+
 						if (!Client::CommitCheckout(selectedCommit->Commit, false))
-							error = git_error_last()->message;
+							RegisterLastGitError();
 
 						Client::UpdateHead(*repoData);
 
@@ -1053,36 +1072,6 @@ namespace QuickGit
 					}
 
 					ImGuiExt::EndPopupModal();
-				}
-			}
-
-			// Error Window
-			{
-				static char gitErrorStr[2048] = "";
-				if (error && gitErrorStr[0] == 0)
-				{
-					strncpy_s(gitErrorStr, error, strlen(error));
-					ImGui::OpenPopup("Error");
-				}
-
-				if (gitErrorStr[0] != 0)
-				{
-					const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-					ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-					if (ImGui::BeginPopupModal("Error"))
-					{
-						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-						ImGui::InputText("##GitError", gitErrorStr, strlen(gitErrorStr), ImGuiInputTextFlags_ReadOnly);
-
-						if (ImGui::Button("OK", ImVec2(120, 0)))
-						{
-							gitErrorStr[0] = 0;
-							error = nullptr;
-							ImGui::CloseCurrentPopup();
-						}
-
-						ImGui::EndPopup();
-					}
 				}
 			}
 
@@ -1386,10 +1375,7 @@ namespace QuickGit
 								success = Client::AddToIndex(git_commit_owner(head), diff.File.c_str());
 
 							if (!success)
-							{
-								if (const git_error* er = git_error_last())
-									printf("%s\n", er->message);
-							}
+								RegisterLastGitError();
 
 							if (success)
 								head = nullptr;
@@ -1453,10 +1439,9 @@ namespace QuickGit
 						memset(desc, 0, sizeof(desc));
 						head = nullptr;
 					}
-					if (!success)
+					else
 					{
-						if (const git_error* er = git_error_last())
-							printf("%s\n", er->message);
+						RegisterLastGitError();
 					}
 				}
 				ImGui::EndDisabled();
@@ -1472,6 +1457,43 @@ namespace QuickGit
 				ImGui::TextWrapped("%s", l.c_str());
 		}
 		ImGuiExt::End();
+
+		// Error Window
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 16.0f, 16.0f });
+		{
+			static bool errorWindowOpened = false;
+			if (!s_GitErrors.empty() && !errorWindowOpened)
+			{
+				errorWindowOpened = true;
+				ImGui::OpenPopup("ErrorWindow");
+			}
+
+			if (errorWindowOpened)
+			{
+				const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+				ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+				if (ImGui::BeginPopupModal("ErrorWindow", nullptr, ImGuiWindowFlags_NoTitleBar))
+				{
+					ImGuiExt::HeadingTextUnformatted("Error");
+					ImGui::Spacing();
+					ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+					eastl::string& errorString = s_GitErrors.top();
+					ImGui::InputText("##GitError", const_cast<char*>(errorString.c_str()), errorString.size(), ImGuiInputTextFlags_ReadOnly);
+
+					ImGui::Spacing();
+					if (ImGui::Button("OK", ImVec2(150, 0)))
+					{
+						s_GitErrors.pop();
+						errorWindowOpened = false;
+						ImGui::CloseCurrentPopup();
+					}
+
+					ImGui::EndPopup();
+				}
+			}
+		}
+		ImGui::PopStyleVar();
+
 		static bool show_demo_window = true;
 		if (show_demo_window)
 			ImGui::ShowDemoWindow(&show_demo_window);
